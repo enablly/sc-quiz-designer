@@ -1,0 +1,26 @@
+{
+  "name": "sc-quiz-designer",
+  "version": "1.0.0",
+  "description": "Reusable quiz builder, public renderer, and scoring/CRM/Gemini engine",
+  "type": "module",
+  "main": "dist/server.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.test.json --noEmit",
+    "start": "node dist/server.js",
+    "dev": "tsc -p tsconfig.json && node dist/server.js",
+    "test": "tsc -p tsconfig.test.json && node --test dist-test/tests/*.test.js"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "dependencies": {
+    "@google-cloud/firestore": "^7.11.0",
+    "express": "^4.21.2"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.2"
+  }
+}

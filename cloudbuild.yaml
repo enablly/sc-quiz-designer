@@ -1,0 +1,23 @@
+steps:
+  - name: "gcr.io/cloud-builders/docker"
+    args: ["build", "-t", "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/sc-quiz-designer:${SHORT_SHA}", "."]
+  - name: "gcr.io/cloud-builders/docker"
+    args: ["push", "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/sc-quiz-designer:${SHORT_SHA}"]
+  - name: "gcr.io/google.com/cloudsdktool/cloud-sdk"
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - sc-quiz-designer
+      - --image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/sc-quiz-designer:${SHORT_SHA}
+      - --region=${_REGION}
+      - --platform=managed
+      - --allow-unauthenticated
+      - --port=8080
+
+substitutions:
+  _REGION: asia-southeast1
+  _REPO: sc-quiz-designer
+
+images:
+  - "${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/sc-quiz-designer:${SHORT_SHA}"

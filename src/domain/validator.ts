@@ -57,6 +57,7 @@ export function normalizeQuizDefinition(input: QuizDefinition): QuizDefinition {
     ? clone.areas.map((a) => ({
         key: String(a.key ?? "").trim(),
         name: String(a.name ?? "").trim(),
+        ...(a.blurb !== undefined ? { blurb: String(a.blurb).trim() } : {}),
       }))
     : [];
   clone.scoredQuestions = Array.isArray(clone.scoredQuestions)

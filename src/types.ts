@@ -28,6 +28,7 @@ export interface ProfileQuestion {
 export interface AreaDefinition {
   key: string;
   name: string;
+  blurb?: string;
 }
 
 export interface ScoredOption {

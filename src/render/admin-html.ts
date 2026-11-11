@@ -864,6 +864,11 @@ export function renderAdminBuilderHtml(): string {
         nameIn.type = "text"; nameIn.value = area.name;
         nameIn.oninput = () => { area.name = nameIn.value; schedulePreview(); };
 
+        const blurbIn = document.createElement("input");
+        blurbIn.type = "text"; blurbIn.value = area.blurb || "";
+        blurbIn.placeholder = "One-line why-it-matters shown on the section intro card";
+        blurbIn.oninput = () => { area.blurb = blurbIn.value; schedulePreview(); };
+
         if (!draft.scoring.gapCopy[area.key]) draft.scoring.gapCopy[area.key] = { headline: "", tip: "" };
         const gapH = document.createElement("input");
         gapH.type = "text"; gapH.value = draft.scoring.gapCopy[area.key].headline || "";
@@ -876,6 +881,7 @@ export function renderAdminBuilderHtml(): string {
           head,
           makeField("Area Key", keyIn),
           makeField("Display Name", nameIn),
+          makeField("Section Intro Blurb (optional)", blurbIn),
           makeField("Gap Card Headline", gapH),
           makeField("Gap Card Tip", gapT),
         );

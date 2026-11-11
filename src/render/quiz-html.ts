@@ -55,6 +55,15 @@ export function renderQuizHtml(
     : "#6b4fbb";
   const accentFg = contrastForegroundHex(accent);
 
+  const totalQuestionCount =
+    quiz.profileQuestions.length + quiz.scoredQuestions.length;
+  const estMinutes = Math.max(2, Math.round(totalQuestionCount * 0.15));
+  const areaCount = quiz.areas.length;
+  const roadmapText = `~${estMinutes} minutes · ${areaCount} ${
+    areaCount === 1 ? "area" : "areas"
+  } · ${totalQuestionCount} questions · get your readiness score and biggest gap at the end`;
+
+  const gapCopy = quiz.scoring.gapCopy ?? {};
   const clientQuizPayload = {
     slug: quiz.slug,
     title: quiz.title,
@@ -66,7 +75,11 @@ export function renderQuizHtml(
       label: pq.label?.trim() || defaultProfileLabel(pq.id, idx),
       options: pq.options,
     })),
-    areas: quiz.areas,
+    areas: quiz.areas.map((a) => ({
+      key: a.key,
+      name: a.name,
+      blurb: a.blurb?.trim() || gapCopy[a.key]?.tip || "",
+    })),
     scoredQuestions: quiz.scoredQuestions.map((sq) => ({
       id: sq.id,
       area: sq.area,
@@ -84,15 +97,25 @@ export function renderQuizHtml(
     },
   };
 
-  const turnstileScript =
-    opts.previewMode
-      ? ""
-      : `<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>`;
+  const turnstileScript = opts.previewMode
+    ? ""
+    : `<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>`;
 
   const logoHtml =
     quiz.theme.logoUrl && /^https?:\/\//i.test(quiz.theme.logoUrl)
-      ? `<img class="brand-logo" src="${escapeHtml(quiz.theme.logoUrl)}" alt="${escapeHtml(quiz.theme.headerText || quiz.title)}">`
+      ? `<img class="brand-logo" src="${escapeHtml(quiz.theme.logoUrl)}" alt="${escapeHtml(
+          quiz.theme.headerText || quiz.title,
+        )}">`
       : "";
+
+  const areaPillsHtml = quiz.areas
+    .map(
+      (a, idx) =>
+        `<li class="welcome-area-pill"><span class="welcome-area-num">${idx + 1}</span><span>${escapeHtml(
+          a.name,
+        )}</span></li>`,
+    )
+    .join("");
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -105,6 +128,8 @@ ${turnstileScript}
   :root {
     --accent: ${accent};
     --accent-fg: ${accentFg};
+    --accent-soft: color-mix(in srgb, var(--accent) 10%, #ffffff);
+    --accent-border: color-mix(in srgb, var(--accent) 32%, #ffffff);
     --bg: #f6f7fb;
     --surface: #ffffff;
     --text: #111827;
@@ -114,7 +139,7 @@ ${turnstileScript}
     --error-bg: #fce8e6;
     --warn-bg: #fef7e0;
     --warn-border: #e37400;
-    --radius: 12px;
+    --radius: 14px;
   }
   *, *::before, *::after { box-sizing: border-box; }
   html { color-scheme: light; }
@@ -144,35 +169,32 @@ ${turnstileScript}
     padding: 0.9rem 1.25rem;
   }
   @supports (color: color(from red xyz-d65 1 1 1)) {
-    .site-header, .btn-primary {
+    .site-header, .btn-primary, .band-pill, .opt-card.is-selected .opt-badge {
       --wcag-y: max(0, sign(0.17913 - y));
       color: color(from var(--accent) xyz-d65 calc(var(--wcag-y) * 0.9505) var(--wcag-y) calc(var(--wcag-y) * 1.089));
     }
   }
   @supports (color: contrast-color(red)) {
-    .site-header, .btn-primary {
+    .site-header, .btn-primary, .band-pill, .opt-card.is-selected .opt-badge {
       color: contrast-color(var(--accent));
     }
   }
   .header-inner {
-    max-width: 700px;
+    max-width: 720px;
     margin: 0 auto;
     display: flex;
     align-items: center;
     gap: 0.75rem;
   }
-  .brand-logo {
-    max-height: 32px;
-    width: auto;
-  }
+  .brand-logo { max-height: 32px; width: auto; }
   .header-kicker {
     font-weight: 600;
     font-size: 0.95rem;
     letter-spacing: 0.01em;
   }
   main {
-    max-width: 700px;
-    margin: 1.5rem auto 3rem;
+    max-width: 720px;
+    margin: 1.5rem auto 3.5rem;
     padding: 0 1rem;
   }
   .card {
@@ -180,54 +202,297 @@ ${turnstileScript}
     border: 1px solid #e5e7eb;
     border-radius: var(--radius);
     padding: 1.5rem;
-    box-shadow: 0 4px 16px rgb(17 24 39 / 0.05);
+    box-shadow: 0 6px 24px rgb(17 24 39 / 0.06);
+    overflow: hidden;
   }
   @media (min-width: 600px) {
-    .card { padding: 2rem; }
+    .card { padding: 2.25rem; }
   }
   h1, h2, h3 { line-height: 1.25; margin-top: 0; }
-  h1 { font-size: 1.6rem; margin-bottom: 0.35rem; }
+  h1:focus, h2:focus, legend:focus { outline: none; }
+  h1 { font-size: 1.75rem; margin-bottom: 0.5rem; }
+  .co-brand {
+    font-size: 0.85rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--accent);
+    margin: 0 0 0.35rem;
+  }
   .subtitle { color: var(--muted); margin: 0 0 1.25rem; font-size: 1rem; }
+
+  /* 1. Welcome screen roadmap & areas */
+  .roadmap-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: var(--accent-soft, #f3f0ff);
+    border: 1px solid var(--accent-border, #d6ccff);
+    color: var(--text);
+    font-size: 0.9rem;
+    font-weight: 600;
+    padding: 0.5rem 0.85rem;
+    border-radius: 999px;
+    margin-bottom: 1.15rem;
+  }
+  .welcome-areas-title {
+    font-size: 0.82rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--muted);
+    margin: 0 0 0.5rem;
+  }
+  .welcome-areas {
+    list-style: none;
+    padding: 0;
+    margin: 0 0 1.35rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  .welcome-area-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.4rem 0.75rem;
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    font-size: 0.88rem;
+    font-weight: 600;
+  }
+  .welcome-area-num {
+    display: inline-grid;
+    place-items: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 999px;
+    background: var(--accent);
+    color: var(--accent-fg);
+    font-size: 0.75rem;
+    font-weight: 700;
+  }
+
+  /* 2. Area-segmented progress bar (transform: scaleX only) */
   .progress-wrap {
-    margin-bottom: 1.25rem;
+    margin-bottom: 1.5rem;
   }
   .progress-meta {
     display: flex;
     justify-content: space-between;
-    font-size: 0.875rem;
+    align-items: baseline;
+    gap: 0.5rem;
+    font-size: 0.85rem;
     color: var(--muted);
-    margin-bottom: 0.35rem;
-    font-weight: 500;
+    margin-bottom: 0.55rem;
+    font-weight: 600;
+    flex-wrap: wrap;
   }
-  progress {
-    width: 100%;
-    height: 8px;
+  .seg-grid {
+    display: grid;
+    grid-template-columns: repeat(var(--area-count, 5), minmax(0, 1fr));
+    gap: 0.4rem;
+  }
+  .seg-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.28rem;
+    min-width: 0;
+  }
+  .seg-track {
+    height: 7px;
+    background: #e5e7eb;
     border-radius: 999px;
     overflow: hidden;
+    position: relative;
   }
-  @supports not (accent-color: var(--accent)) {
-    progress { -webkit-appearance: none; appearance: none; border: none; background: #e5e7eb; }
-    progress::-webkit-progress-bar { background: #e5e7eb; border-radius: 999px; }
-    progress::-webkit-progress-value { background: var(--accent); border-radius: 999px; }
-    progress::-moz-progress-bar { background: var(--accent); border-radius: 999px; }
+  .seg-item.is-current .seg-track {
+    box-shadow: 0 0 0 1.5px var(--accent);
   }
+  .seg-fill {
+    width: 100%;
+    height: 100%;
+    background: var(--accent);
+    border-radius: 999px;
+    transform-origin: left center;
+    transform: scaleX(var(--seg-scale, 0));
+    transition: transform 280ms cubic-bezier(0.22, 1, 0.36, 1);
+    will-change: transform;
+  }
+  .seg-label {
+    font-size: 0.72rem;
+    color: var(--muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-weight: 500;
+  }
+  .seg-item.is-current .seg-label {
+    color: var(--accent);
+    font-weight: 700;
+  }
+
+  /* 3. Section-intro card */
+  .section-intro-box {
+    background: var(--accent-soft, #f3f0ff);
+    border: 1.5px solid var(--accent-border, #d6ccff);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin: 0.5rem 0 1.25rem;
+  }
+  .section-intro-kicker {
+    font-size: 0.82rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--accent);
+    margin: 0 0 0.35rem;
+  }
+  .section-intro-title {
+    font-size: 1.45rem;
+    margin: 0 0 0.6rem;
+  }
+  .section-intro-blurb {
+    font-size: 1.05rem;
+    color: var(--text);
+    margin: 0;
+  }
+
+  /* 4. Reactive answer cards */
+  fieldset.option-fieldset {
+    border: none;
+    padding: 0;
+    margin: 0 0 1.25rem;
+  }
+  fieldset.option-fieldset legend {
+    font-size: 1.3rem;
+    font-weight: 700;
+    margin-bottom: 1.1rem;
+    padding: 0;
+    width: 100%;
+  }
+  .options-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.7rem;
+  }
+  .opt-card {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    padding: 0.9rem 1rem;
+    border: 2px solid var(--border);
+    border-radius: 12px;
+    min-height: 56px;
+    cursor: pointer;
+    background: #ffffff;
+    transition: transform 180ms ease, opacity 180ms ease, border-color 180ms ease, background-color 180ms ease;
+    user-select: none;
+  }
+  .opt-card:hover {
+    border-color: var(--accent);
+    background: #fafafe;
+  }
+  .opt-card:focus-within {
+    outline: 3px solid #0b57d0;
+    outline-offset: 2px;
+  }
+  .opt-badge {
+    display: inline-grid;
+    place-items: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    border: 1.5px solid var(--border);
+    background: #f9fafb;
+    color: var(--text);
+    font-weight: 700;
+    font-size: 0.88rem;
+    flex-shrink: 0;
+    transition: background-color 180ms ease, border-color 180ms ease, color 180ms ease;
+  }
+  .opt-text {
+    flex: 1;
+    font-size: 1rem;
+    font-weight: 500;
+  }
+  .opt-check {
+    width: 26px;
+    height: 26px;
+    border-radius: 999px;
+    background: var(--accent);
+    color: var(--accent-fg);
+    display: inline-grid;
+    place-items: center;
+    font-size: 0.85rem;
+    font-weight: 800;
+    opacity: 0;
+    transform: scale(0.6);
+    transition: opacity 180ms ease, transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+    flex-shrink: 0;
+  }
+  .opt-card.is-selected {
+    border-color: var(--accent);
+    background: var(--accent-soft, #f4f1fc);
+  }
+  .opt-card.is-selected .opt-text {
+    font-weight: 600;
+  }
+  .opt-card.is-selected .opt-badge {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--accent-fg);
+  }
+  .opt-card.is-selected .opt-check {
+    opacity: 1;
+    transform: scale(1);
+  }
+  .options-list.is-locking .opt-card:not(.is-selected) {
+    opacity: 0.48;
+  }
+  .kbd-hint {
+    font-size: 0.8rem;
+    color: var(--muted);
+    margin-top: 0.5rem;
+  }
+
+  /* 5. Step transitions (slide + fade, 280 ms, transform/opacity only) */
+  @keyframes stepSlideForward {
+    from { opacity: 0; transform: translateX(18px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+  @keyframes stepSlideBack {
+    from { opacity: 0; transform: translateX(-18px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+  .step-anim-forward {
+    animation: stepSlideForward 280ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  .step-anim-back {
+    animation: stepSlideBack 280ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  /* Consent & Identity forms */
   .consent-box {
     background: #f9fafb;
     border: 1px solid #e5e7eb;
-    border-radius: 8px;
+    border-radius: 10px;
     padding: 1rem;
     margin-bottom: 1rem;
-    font-size: 0.95rem;
+    font-size: 0.92rem;
+    color: var(--muted);
   }
   .checkbox-row {
     display: flex;
     align-items: flex-start;
     gap: 0.75rem;
-    padding: 0.75rem;
-    border: 1px solid var(--border);
-    border-radius: 8px;
+    padding: 0.8rem 0.9rem;
+    border: 1.5px solid var(--border);
+    border-radius: 10px;
     cursor: pointer;
     min-height: 48px;
+    font-weight: 500;
   }
   .checkbox-row input[type="checkbox"] {
     width: 20px;
@@ -236,9 +501,9 @@ ${turnstileScript}
     flex-shrink: 0;
   }
   .prefill-banner {
-    background: #f3f0ff;
-    border: 1px solid #d6ccff;
-    border-radius: 8px;
+    background: var(--accent-soft, #f3f0ff);
+    border: 1px solid var(--accent-border, #d6ccff);
+    border-radius: 10px;
     padding: 0.85rem 1rem;
     margin-bottom: 1.25rem;
     display: flex;
@@ -255,47 +520,9 @@ ${turnstileScript}
     font-weight: 600;
     cursor: pointer;
     text-decoration: underline;
-    padding: 0.25rem 0.4rem;
+    padding: 0.4rem 0.5rem;
+    min-height: 44px;
     font-size: inherit;
-  }
-  fieldset.option-fieldset {
-    border: none;
-    padding: 0;
-    margin: 0 0 1.25rem;
-  }
-  fieldset.option-fieldset legend {
-    font-size: 1.25rem;
-    font-weight: 700;
-    margin-bottom: 1rem;
-    padding: 0;
-  }
-  .options-list {
-    display: flex;
-    flex-direction: column;
-    gap: 0.65rem;
-  }
-  .option-label {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    padding: 0.85rem 1rem;
-    border: 1.5px solid var(--border);
-    border-radius: 10px;
-    min-height: 52px;
-    cursor: pointer;
-    transition: border-color 0.15s ease, background-color 0.15s ease;
-  }
-  .option-label:hover { border-color: var(--accent); background: #fafafe; }
-  .option-label:has(input:checked) {
-    border-color: var(--accent);
-    background: #f4f1fc;
-    font-weight: 600;
-  }
-  .option-label input[type="radio"] {
-    width: 20px;
-    height: 20px;
-    flex-shrink: 0;
-    margin: 0;
   }
   .field {
     display: flex;
@@ -304,14 +531,8 @@ ${turnstileScript}
     gap: 0.25rem;
     margin-bottom: 1.15rem;
   }
-  .field label {
-    font-weight: 600;
-    font-size: 0.95rem;
-  }
-  .hint {
-    color: var(--muted);
-    font-size: 0.85rem;
-  }
+  .field label { font-weight: 600; font-size: 0.95rem; }
+  .hint { color: var(--muted); font-size: 0.85rem; }
   .field input[type="text"],
   .field input[type="email"] {
     font: inherit;
@@ -327,9 +548,7 @@ ${turnstileScript}
     border-color: var(--error);
     background-color: var(--error-bg);
   }
-  .field input:user-valid {
-    border-color: #188038;
-  }
+  .field input:user-valid { border-color: #188038; }
   .error-msg {
     display: none;
     color: var(--error);
@@ -369,8 +588,8 @@ ${turnstileScript}
     font: inherit;
     font-weight: 600;
     min-height: 48px;
-    padding: 0.7rem 1.35rem;
-    border-radius: 8px;
+    padding: 0.7rem 1.4rem;
+    border-radius: 10px;
     border: 1.5px solid transparent;
     cursor: pointer;
   }
@@ -383,18 +602,13 @@ ${turnstileScript}
     color: var(--accent-fg);
     margin-inline-start: auto;
   }
-  .btn-primary:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-  }
+  .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
   .btn-secondary {
     background: #ffffff;
     border-color: var(--border);
     color: var(--text);
   }
-  .turnstile-wrap {
-    margin: 1rem 0;
-  }
+  .turnstile-wrap { margin: 1rem 0; }
   .preview-badge {
     display: inline-block;
     background: #fef3c7;
@@ -406,24 +620,63 @@ ${turnstileScript}
     padding: 0.2rem 0.65rem;
     margin-bottom: 0.75rem;
   }
+
+  /* 6. Animated results reveal */
   .score-hero {
     text-align: center;
-    padding: 1.25rem;
+    padding: 1.5rem 1.25rem;
     background: #f8f7fc;
     border: 1px solid #e5e7eb;
-    border-radius: 10px;
-    margin-bottom: 1.5rem;
+    border-radius: 12px;
+    margin-bottom: 1.75rem;
+  }
+  .score-ring-wrap {
+    position: relative;
+    width: 140px;
+    height: 140px;
+    margin: 0 auto 0.6rem;
+    display: grid;
+    place-items: center;
+  }
+  .score-ring-svg {
+    width: 140px;
+    height: 140px;
+    transform: rotate(-90deg);
+  }
+  .score-ring-track {
+    fill: none;
+    stroke: #e5e7eb;
+    stroke-width: 10;
+  }
+  .score-ring-arc {
+    fill: none;
+    stroke: var(--accent);
+    stroke-width: 10;
+    stroke-linecap: round;
+    stroke-dasharray: 314.16;
+    stroke-dashoffset: var(--ring-offset, 314.16);
+    transition: stroke-dashoffset 900ms cubic-bezier(0.22, 1, 0.36, 1);
   }
   .score-pct {
-    font-size: 2.75rem;
+    position: absolute;
+    font-size: 2.15rem;
     font-weight: 800;
     color: var(--accent);
-    line-height: 1.1;
+    line-height: 1;
+  }
+  .reveal-fade {
+    opacity: 1;
+    transform: translateY(0);
+    transition: opacity 320ms ease-out, transform 320ms ease-out;
+  }
+  .reveal-fade.is-pre {
+    opacity: 0;
+    transform: translateY(8px);
   }
   .band-pill {
     display: inline-block;
-    margin-top: 0.4rem;
-    padding: 0.25rem 0.75rem;
+    margin-top: 0.25rem;
+    padding: 0.3rem 0.85rem;
     border-radius: 999px;
     background: var(--accent);
     color: var(--accent-fg);
@@ -431,14 +684,22 @@ ${turnstileScript}
     font-size: 0.9rem;
   }
   .area-row {
-    margin-bottom: 0.85rem;
+    margin-bottom: 0.95rem;
+    opacity: 1;
+    transform: translateY(0);
+    transition: opacity 280ms ease-out, transform 280ms ease-out;
+    transition-delay: var(--stagger, 0ms);
+  }
+  .area-row.is-pre {
+    opacity: 0;
+    transform: translateY(8px);
   }
   .area-row-head {
     display: flex;
     justify-content: space-between;
     font-size: 0.92rem;
     font-weight: 600;
-    margin-bottom: 0.25rem;
+    margin-bottom: 0.3rem;
   }
   .area-bar-track {
     height: 10px;
@@ -447,26 +708,68 @@ ${turnstileScript}
     overflow: hidden;
   }
   .area-bar-fill {
+    width: 100%;
     height: 100%;
     background: var(--accent);
     border-radius: 999px;
+    transform-origin: left center;
+    transform: scaleX(var(--bar-scale, 0));
+    transition: transform 650ms cubic-bezier(0.22, 1, 0.36, 1);
+    transition-delay: var(--stagger, 0ms);
+    will-change: transform;
+  }
+  .gap-section {
+    opacity: 1;
+    transform: translateY(0);
+    transition: opacity 350ms ease-out, transform 350ms ease-out;
+  }
+  .gap-section.is-pre {
+    opacity: 0;
+    transform: translateY(10px);
   }
   .gap-card {
-    border-left: 4px solid var(--accent);
-    background: #f9fafb;
-    padding: 1rem;
-    border-radius: 0 8px 8px 0;
+    border: 1.5px solid var(--accent-border, #d6ccff);
+    border-left: 5px solid var(--accent);
+    background: var(--accent-soft, #f8f6ff);
+    padding: 1.15rem;
+    border-radius: 10px;
     margin-bottom: 0.85rem;
   }
-  .gap-card h3 { margin-bottom: 0.25rem; font-size: 1.05rem; }
+  .gap-badge {
+    display: inline-block;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--accent);
+    margin-bottom: 0.25rem;
+  }
+  .gap-card h3 { margin-bottom: 0.3rem; font-size: 1.08rem; }
   .closing-box {
-    margin-top: 1.25rem;
-    padding: 1rem;
-    background: #f3f0ff;
-    border-radius: 8px;
+    margin-top: 1.35rem;
+    padding: 1rem 1.15rem;
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
     font-weight: 500;
   }
   [hidden] { display: none !important; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      transition-delay: 0ms !important;
+      scroll-behavior: auto !important;
+    }
+    .reveal-fade.is-pre,
+    .area-row.is-pre,
+    .gap-section.is-pre {
+      opacity: 1 !important;
+      transform: none !important;
+    }
+  }
 </style>
 </head>
 <body>
@@ -483,20 +786,27 @@ ${turnstileScript}
     <section id="app" class="card" aria-live="off">
       ${opts.previewMode ? `<span class="preview-badge">Builder Live Preview (client-side simulation)</span>` : ""}
 
+      <!-- Area-segmented progress bar -->
       <div id="progress-container" class="progress-wrap" hidden>
         <div class="progress-meta">
-          <span id="progress-label">Question 1</span>
-          <span id="progress-pct">0%</span>
+          <span id="progress-label"></span>
+          <span id="progress-overall"></span>
         </div>
-        <progress id="progress-bar" max="100" value="0"></progress>
+        <div id="seg-grid" class="seg-grid" style="--area-count: ${Math.max(1, quiz.areas.length)}"></div>
       </div>
 
       <div id="step-error" class="inline-error" role="alert" hidden></div>
 
-      <!-- Step: Consent -->
+      <!-- 1. Welcome + Consent screen -->
       <form id="consent-view" hidden novalidate>
-        <h1 tabindex="-1">${escapeHtml(quiz.title)}</h1>
-        <p class="subtitle">${escapeHtml(quiz.subtitle)}</p>
+        <p class="co-brand">${escapeHtml(quiz.subtitle)}</p>
+        <h1 id="welcome-heading" tabindex="-1">${escapeHtml(quiz.title)}</h1>
+        <div id="welcome-roadmap" class="roadmap-pill">${escapeHtml(roadmapText)}</div>
+
+        <p class="welcome-areas-title">Areas covered</p>
+        <ul class="welcome-areas" aria-label="Assessment areas">
+          ${areaPillsHtml}
+        </ul>
 
         <div id="prefill-consent-banner" class="prefill-banner" hidden>
           <span id="prefill-summary"></span>
@@ -517,11 +827,25 @@ ${turnstileScript}
         </div>
       </form>
 
-      <!-- Step: Question -->
+      <!-- 3. Section-Intro card (before the first question of each scored area) -->
+      <div id="section-intro-view" hidden>
+        <div class="section-intro-box">
+          <p id="intro-kicker" class="section-intro-kicker"></p>
+          <h2 id="intro-heading" class="section-intro-title" tabindex="-1"></h2>
+          <p id="intro-blurb" class="section-intro-blurb"></p>
+        </div>
+        <div class="actions">
+          <button type="button" id="intro-back-btn" class="btn btn-secondary" enterkeyhint="previous">Back</button>
+          <button type="button" id="intro-continue-btn" class="btn btn-primary" enterkeyhint="next">Continue</button>
+        </div>
+      </div>
+
+      <!-- 4. Question screen with reactive answer cards -->
       <form id="question-view" hidden novalidate>
         <fieldset class="option-fieldset">
           <legend id="question-legend" tabindex="-1"></legend>
           <div id="question-options" class="options-list"></div>
+          <div class="kbd-hint" aria-hidden="true">Tip: Press A–D to select, or Enter to continue.</div>
         </fieldset>
         <div class="actions">
           <button type="button" id="q-back-btn" class="btn btn-secondary" enterkeyhint="previous">Back</button>
@@ -529,7 +853,7 @@ ${turnstileScript}
         </div>
       </form>
 
-      <!-- Step: Identity + Turnstile -->
+      <!-- Identity + Turnstile -->
       <form id="identity-view" hidden novalidate>
         <h2 id="identity-heading" tabindex="-1">Where should we send your report?</h2>
         <p class="subtitle">Enter your details to unlock your readiness breakdown.</p>
@@ -576,23 +900,32 @@ ${turnstileScript}
         </div>
       </form>
 
-      <!-- Step: Results -->
+      <!-- 6. Results screen -->
       <section id="results-view" hidden>
         <h2 id="results-heading" tabindex="-1">Your readiness results</h2>
-        <div class="score-hero">
-          <div id="res-pct" class="score-pct">0%</div>
-          <div id="res-band" class="band-pill"></div>
-          <h3 id="res-headline" style="margin-top:0.85rem; margin-bottom:0.4rem;"></h3>
-          <p id="res-body" style="margin:0; color:var(--muted);"></p>
+        <div id="score-hero" class="score-hero">
+          <div class="score-ring-wrap">
+            <svg class="score-ring-svg" viewBox="0 0 120 120" aria-hidden="true">
+              <circle class="score-ring-track" cx="60" cy="60" r="50"></circle>
+              <circle id="res-ring-arc" class="score-ring-arc" cx="60" cy="60" r="50"></circle>
+            </svg>
+            <div id="res-pct" class="score-pct">0%</div>
+          </div>
+          <div id="res-hero-copy" class="reveal-fade">
+            <div id="res-band" class="band-pill"></div>
+            <h3 id="res-headline" style="margin-top:0.85rem; margin-bottom:0.4rem;"></h3>
+            <p id="res-body" style="margin:0; color:var(--muted);"></p>
+          </div>
         </div>
 
         <h3>Scores by area</h3>
         <div id="res-areas" style="margin-bottom:1.5rem;"></div>
 
-        <h3>Biggest opportunity</h3>
-        <div id="res-gaps"></div>
-
-        <div id="res-closing" class="closing-box"></div>
+        <div id="res-gap-section" class="gap-section">
+          <h3>Biggest gap</h3>
+          <div id="res-gaps"></div>
+          <div id="res-closing" class="closing-box"></div>
+        </div>
 
         <div class="actions">
           <button type="button" id="retake-btn" class="btn btn-secondary">Retake assessment</button>
@@ -611,12 +944,72 @@ ${turnstileScript}
     "gmail.com","yahoo.com","hotmail.com","outlook.com","icloud.com","live.com",
     "aol.com","proton.me","protonmail.com","ymail.com","me.com","msn.com","gmx.com","mail.com"
   ]);
+  const RING_CIRC = 314.16;
 
-  const STORAGE_KEY = "sc_quiz_" + QUIZ.slug;
-  const allQuestions = [
-    ...QUIZ.profileQuestions.map((pq) => ({ kind: "profile", id: pq.id, text: pq.label, options: pq.options })),
-    ...QUIZ.scoredQuestions.map((sq) => ({ kind: "scored", id: sq.id, text: sq.text, options: sq.options })),
-  ];
+  const prefersReducedMotion = () =>
+    Boolean(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+
+  const STORAGE_KEY = "sc_quiz_v2_" + QUIZ.slug;
+  const totalQuestions = QUIZ.profileQuestions.length + QUIZ.scoredQuestions.length;
+
+  // Build wizard steps: profile questions, then for each area: section-intro + area questions
+  const wizardSteps = [];
+  let qOverall = 0;
+
+  QUIZ.profileQuestions.forEach((pq, idx) => {
+    qOverall += 1;
+    wizardSteps.push({
+      type: "question",
+      kind: "profile",
+      id: pq.id,
+      text: pq.label,
+      options: pq.options,
+      areaKey: "__profile__",
+      areaName: "About your organisation",
+      indexInArea: idx + 1,
+      areaTotal: QUIZ.profileQuestions.length,
+      overallIndex: qOverall,
+      totalQuestions,
+    });
+  });
+
+  const seenAreas = new Set();
+  QUIZ.scoredQuestions.forEach((sq) => {
+    const areaObj = QUIZ.areas.find((a) => a.key === sq.area) || { key: sq.area, name: sq.area, blurb: "" };
+    const areaQuestions = QUIZ.scoredQuestions.filter((x) => x.area === sq.area);
+    const idxInArea = areaQuestions.findIndex((x) => x.id === sq.id) + 1;
+    const areaIdx = QUIZ.areas.findIndex((a) => a.key === sq.area) + 1;
+
+    if (!seenAreas.has(sq.area)) {
+      seenAreas.add(sq.area);
+      wizardSteps.push({
+        type: "area-intro",
+        areaKey: areaObj.key,
+        areaName: areaObj.name,
+        areaIndex: areaIdx > 0 ? areaIdx : seenAreas.size,
+        totalAreas: QUIZ.areas.length,
+        blurb: areaObj.blurb || "",
+        areaTotal: areaQuestions.length,
+        overallIndex: qOverall + 1,
+        totalQuestions,
+      });
+    }
+
+    qOverall += 1;
+    wizardSteps.push({
+      type: "question",
+      kind: "scored",
+      id: sq.id,
+      text: sq.text,
+      options: sq.options,
+      areaKey: areaObj.key,
+      areaName: areaObj.name,
+      indexInArea: idxInArea,
+      areaTotal: areaQuestions.length,
+      overallIndex: qOverall,
+      totalQuestions,
+    });
+  });
 
   function makeUuid() {
     if (crypto && typeof crypto.randomUUID === "function") return crypto.randomUUID();
@@ -638,7 +1031,7 @@ ${turnstileScript}
   const hasPrefill = Boolean(queryFn || queryEm);
 
   const defaultState = () => ({
-    step: -1, // -1 = consent, 0..N-1 = questions, N = identity, N+1 = results
+    step: -1, // -1 = welcome/consent, 0..wizardSteps.length-1 = steps, wizardSteps.length = identity, wizardSteps.length+1 = results
     consentAccepted: false,
     consentTimestamp: "",
     profile: {},
@@ -649,7 +1042,7 @@ ${turnstileScript}
       email: queryEm,
       company: queryCo,
     },
-    source: (QUIZ.sources.includes(querySrc) ? querySrc : (querySrc || "public")),
+    source: QUIZ.sources.includes(querySrc) ? querySrc : (querySrc || "public"),
     prefilledMode: hasPrefill,
     clientSubmissionId: makeUuid(),
     results: null,
@@ -683,14 +1076,22 @@ ${turnstileScript}
   // DOM refs
   const progressContainer = document.getElementById("progress-container");
   const progressLabel = document.getElementById("progress-label");
-  const progressPct = document.getElementById("progress-pct");
-  const progressBar = document.getElementById("progress-bar");
+  const progressOverall = document.getElementById("progress-overall");
+  const segGrid = document.getElementById("seg-grid");
   const stepError = document.getElementById("step-error");
 
   const consentView = document.getElementById("consent-view");
+  const welcomeHeading = document.getElementById("welcome-heading");
   const consentCheckbox = document.getElementById("consent-checkbox");
   const prefillConsentBanner = document.getElementById("prefill-consent-banner");
   const prefillSummary = document.getElementById("prefill-summary");
+
+  const sectionIntroView = document.getElementById("section-intro-view");
+  const introKicker = document.getElementById("intro-kicker");
+  const introHeading = document.getElementById("intro-heading");
+  const introBlurb = document.getElementById("intro-blurb");
+  const introBackBtn = document.getElementById("intro-back-btn");
+  const introContinueBtn = document.getElementById("intro-continue-btn");
 
   const questionView = document.getElementById("question-view");
   const questionLegend = document.getElementById("question-legend");
@@ -716,6 +1117,65 @@ ${turnstileScript}
 
   let turnstileWidgetId = null;
   let turnstileToken = "";
+  let autoAdvanceTimer = null;
+  let navDirection = "forward";
+
+  // Build segmented area progress DOM once
+  const segElements = new Map();
+  QUIZ.areas.forEach((a) => {
+    const item = document.createElement("div");
+    item.className = "seg-item";
+    item.innerHTML =
+      "<div class=\\"seg-track\\"><div class=\\"seg-fill\\"></div></div>" +
+      "<span class=\\"seg-label\\"></span>";
+    item.querySelector(".seg-label").textContent = a.name;
+    segGrid.append(item);
+    segElements.set(a.key, {
+      item,
+      fill: item.querySelector(".seg-fill"),
+    });
+  });
+
+  function updateSegmentedProgress(currentStepObj) {
+    QUIZ.areas.forEach((a) => {
+      const areaQs = QUIZ.scoredQuestions.filter((sq) => sq.area === a.key);
+      const answeredCount = areaQs.filter((sq) => Boolean(state.answers[sq.id])).length;
+      const ratio = areaQs.length > 0 ? answeredCount / areaQs.length : 0;
+      const entry = segElements.get(a.key);
+      if (entry) {
+        entry.fill.style.setProperty("--seg-scale", String(ratio));
+        entry.item.classList.toggle(
+          "is-current",
+          Boolean(currentStepObj && currentStepObj.areaKey === a.key),
+        );
+      }
+    });
+
+    if (!currentStepObj) return;
+    if (currentStepObj.type === "area-intro") {
+      progressLabel.textContent =
+        currentStepObj.areaName + " · Area " + currentStepObj.areaIndex + " of " + currentStepObj.totalAreas;
+      progressOverall.textContent =
+        currentStepObj.overallIndex + " of " + currentStepObj.totalQuestions + " overall";
+    } else {
+      progressLabel.textContent =
+        currentStepObj.areaName +
+        " · Question " +
+        currentStepObj.indexInArea +
+        " of " +
+        currentStepObj.areaTotal +
+        " in this area";
+      progressOverall.textContent =
+        currentStepObj.overallIndex + " of " + currentStepObj.totalQuestions + " overall";
+    }
+  }
+
+  function cancelAutoAdvance() {
+    if (autoAdvanceTimer !== null) {
+      clearTimeout(autoAdvanceTimer);
+      autoAdvanceTimer = null;
+    }
+  }
 
   function showError(msg) {
     if (!msg) {
@@ -727,12 +1187,19 @@ ${turnstileScript}
     stepError.hidden = false;
   }
 
+  function applyStepTransition(el) {
+    el.classList.remove("step-anim-forward", "step-anim-back");
+    if (prefersReducedMotion()) return;
+    void el.offsetWidth;
+    el.classList.add(navDirection === "back" ? "step-anim-back" : "step-anim-forward");
+  }
+
   function clearPrefill() {
     state.prefilledMode = false;
     state.clearedPrefill = true;
     state.identity = { firstName: "", lastName: "", email: "", company: "" };
     persist();
-    render();
+    render(false);
   }
 
   document.getElementById("not-you-btn-1").addEventListener("click", clearPrefill);
@@ -800,63 +1267,163 @@ ${turnstileScript}
     }
   }
 
+  function selectOptionAndAutoAdvance(stepObj, optionText, cardEl) {
+    cancelAutoAdvance();
+    if (stepObj.kind === "profile") state.profile[stepObj.id] = optionText;
+    else state.answers[stepObj.id] = optionText;
+    persist();
+    showError("");
+
+    const allCards = questionOptions.querySelectorAll(".opt-card");
+    allCards.forEach((c) => c.classList.toggle("is-selected", c === cardEl));
+    questionOptions.classList.add("is-locking");
+    updateSegmentedProgress(stepObj);
+
+    const delay = prefersReducedMotion() ? 0 : 350;
+    autoAdvanceTimer = setTimeout(() => {
+      autoAdvanceTimer = null;
+      navDirection = "forward";
+      state.step += 1;
+      persist();
+      render(true);
+    }, delay);
+  }
+
+  function animateResultsReveal(r) {
+    const pctEl = document.getElementById("res-pct");
+    const ringArc = document.getElementById("res-ring-arc");
+    const heroCopy = document.getElementById("res-hero-copy");
+    const gapSection = document.getElementById("res-gap-section");
+    const targetPct = Number(r.readinessPct || 0);
+    const targetOffset = RING_CIRC * (1 - Math.max(0, Math.min(100, targetPct)) / 100);
+
+    // Final DOM value always set first for accessibility / reduced-motion
+    pctEl.textContent = targetPct + "%";
+    document.getElementById("score-hero").setAttribute("aria-label", "Overall readiness " + targetPct + "%, " + r.band.label);
+
+    if (prefersReducedMotion()) {
+      ringArc.style.setProperty("--ring-offset", String(targetOffset));
+      return;
+    }
+
+    // Ring sweep + rAF easeOutCubic count-up
+    ringArc.style.setProperty("--ring-offset", String(RING_CIRC));
+    heroCopy.classList.add("is-pre");
+    gapSection.classList.add("is-pre");
+
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        ringArc.style.setProperty("--ring-offset", String(targetOffset));
+        heroCopy.classList.remove("is-pre");
+      });
+    });
+
+    const duration = 900;
+    const start = performance.now();
+    function tick(now) {
+      const t = Math.min(1, (now - start) / duration);
+      const eased = 1 - Math.pow(1 - t, 3);
+      const current = Math.round(eased * targetPct);
+      pctEl.textContent = (t < 1 ? current : targetPct) + "%";
+      if (t < 1) requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+
+    // Reveal biggest-gap section LAST after the staggered area bars
+    const gapDelay = QUIZ.areas.length * 120 + 260;
+    setTimeout(() => {
+      gapSection.classList.remove("is-pre");
+    }, gapDelay);
+  }
+
   function render(focusHeading = false) {
+    cancelAutoAdvance();
     showError("");
     consentView.hidden = true;
+    sectionIntroView.hidden = true;
     questionView.hidden = true;
     identityView.hidden = true;
     resultsView.hidden = true;
 
-    const totalQuestions = allQuestions.length;
+    const totalWizardSteps = wizardSteps.length;
 
     if (state.step < 0) {
       progressContainer.hidden = true;
       consentView.hidden = false;
+      applyStepTransition(consentView);
       consentCheckbox.checked = Boolean(state.consentAccepted);
       if (state.prefilledMode && (state.identity.firstName || state.identity.email)) {
         prefillConsentBanner.hidden = false;
         const who = [state.identity.firstName, state.identity.lastName].filter(Boolean).join(" ");
-        prefillSummary.textContent = "Completing as " + (who || state.identity.email) + (who && state.identity.email ? " (" + state.identity.email + ")" : "");
+        prefillSummary.textContent =
+          "Completing as " + (who || state.identity.email) + (who && state.identity.email ? " (" + state.identity.email + ")" : "");
       } else {
         prefillConsentBanner.hidden = true;
       }
-      if (focusHeading) consentView.querySelector("h1")?.focus();
+      if (focusHeading) welcomeHeading.focus();
       return;
     }
 
-    if (state.step < totalQuestions) {
+    if (state.step < totalWizardSteps) {
       progressContainer.hidden = false;
-      const pct = Math.round(((state.step + 1) / (totalQuestions + 1)) * 100);
-      progressLabel.textContent = "Question " + (state.step + 1) + " of " + totalQuestions;
-      progressPct.textContent = pct + "%";
-      progressBar.value = pct;
+      const stepObj = wizardSteps[state.step];
+      updateSegmentedProgress(stepObj);
 
-      const q = allQuestions[state.step];
+      if (stepObj.type === "area-intro") {
+        sectionIntroView.hidden = false;
+        applyStepTransition(sectionIntroView);
+        introKicker.textContent = "Area " + stepObj.areaIndex + " of " + stepObj.totalAreas;
+        introHeading.textContent = "Area " + stepObj.areaIndex + " of " + stepObj.totalAreas + " — " + stepObj.areaName;
+        introBlurb.textContent = stepObj.blurb;
+        if (focusHeading) introHeading.focus();
+        return;
+      }
+
       questionView.hidden = false;
-      questionLegend.textContent = q.text;
+      applyStepTransition(questionView);
+      questionLegend.textContent = stepObj.text;
       questionOptions.innerHTML = "";
+      questionOptions.classList.remove("is-locking");
 
-      const currentVal = q.kind === "profile" ? state.profile[q.id] : state.answers[q.id];
-      q.options.forEach((opt, i) => {
+      const currentVal = stepObj.kind === "profile" ? state.profile[stepObj.id] : state.answers[stepObj.id];
+      stepObj.options.forEach((opt, i) => {
+        const letter = String.fromCharCode(65 + i);
         const label = document.createElement("label");
-        label.className = "option-label";
+        label.className = "opt-card";
+        label.dataset.letter = letter;
+
         const radio = document.createElement("input");
         radio.type = "radio";
         radio.name = "current_q";
         radio.value = opt.text;
+        radio.className = "visually-hidden";
         radio.id = "q_opt_" + i;
-        if (currentVal === opt.text || (q.kind === "profile" && currentVal === opt.code)) {
+
+        const isSelected = currentVal === opt.text || (stepObj.kind === "profile" && currentVal === opt.code);
+        if (isSelected) {
           radio.checked = true;
+          label.classList.add("is-selected");
         }
+
         radio.addEventListener("change", () => {
-          if (q.kind === "profile") state.profile[q.id] = opt.text;
-          else state.answers[q.id] = opt.text;
-          persist();
-          showError("");
+          selectOptionAndAutoAdvance(stepObj, opt.text, label);
         });
-        const span = document.createElement("span");
-        span.textContent = opt.text;
-        label.append(radio, span);
+
+        const badge = document.createElement("span");
+        badge.className = "opt-badge";
+        badge.setAttribute("aria-hidden", "true");
+        badge.textContent = letter;
+
+        const textSpan = document.createElement("span");
+        textSpan.className = "opt-text";
+        textSpan.textContent = opt.text;
+
+        const checkSpan = document.createElement("span");
+        checkSpan.className = "opt-check";
+        checkSpan.setAttribute("aria-hidden", "true");
+        checkSpan.textContent = "✓";
+
+        label.append(radio, badge, textSpan, checkSpan);
         questionOptions.append(label);
       });
 
@@ -864,13 +1431,14 @@ ${turnstileScript}
       return;
     }
 
-    if (state.step === totalQuestions) {
+    if (state.step === totalWizardSteps) {
       progressContainer.hidden = false;
-      progressLabel.textContent = "Final step";
-      progressPct.textContent = "95%";
-      progressBar.value = 95;
+      updateSegmentedProgress(null);
+      progressLabel.textContent = "Final step · Your details";
+      progressOverall.textContent = totalQuestions + " of " + totalQuestions + " complete";
 
       identityView.hidden = false;
+      applyStepTransition(identityView);
       fnInput.value = state.identity.firstName || "";
       lnInput.value = state.identity.lastName || "";
       emInput.value = state.identity.email || "";
@@ -896,9 +1464,9 @@ ${turnstileScript}
     // Results screen
     progressContainer.hidden = true;
     resultsView.hidden = false;
+    applyStepTransition(resultsView);
     const r = state.results;
     if (r) {
-      document.getElementById("res-pct").textContent = r.readinessPct + "%";
       document.getElementById("res-band").textContent = r.band.label;
       const headline = (r.band.headline || "")
         .replace(/\\[X\\]/g, String(r.readinessPct))
@@ -908,18 +1476,29 @@ ${turnstileScript}
 
       const areasEl = document.getElementById("res-areas");
       areasEl.innerHTML = "";
-      QUIZ.areas.forEach((a) => {
+      const reduced = prefersReducedMotion();
+      QUIZ.areas.forEach((a, idx) => {
         const pct = r.areaPcts[a.key] ?? 0;
         const row = document.createElement("div");
-        row.className = "area-row";
+        row.className = "area-row" + (reduced ? "" : " is-pre");
+        row.style.setProperty("--stagger", (idx * 120) + "ms");
         row.innerHTML =
           "<div class=\\"area-row-head\\"><span></span><span></span></div>" +
           "<div class=\\"area-bar-track\\"><div class=\\"area-bar-fill\\"></div></div>";
         const spans = row.querySelectorAll(".area-row-head span");
         spans[0].textContent = a.name;
         spans[1].textContent = pct + "%";
-        row.querySelector(".area-bar-fill").style.width = pct + "%";
+        const fill = row.querySelector(".area-bar-fill");
+        fill.style.setProperty("--bar-scale", reduced ? String(pct / 100) : "0");
         areasEl.append(row);
+        if (!reduced) {
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              row.classList.remove("is-pre");
+              fill.style.setProperty("--bar-scale", String(pct / 100));
+            });
+          });
+        }
       });
 
       const gapsEl = document.getElementById("res-gaps");
@@ -927,16 +1506,20 @@ ${turnstileScript}
       (r.gapCards || []).forEach((g) => {
         const card = document.createElement("div");
         card.className = "gap-card";
+        const badge = document.createElement("span");
+        badge.className = "gap-badge";
+        badge.textContent = "Priority focus area";
         const h3 = document.createElement("h3");
         h3.textContent = g.areaName + " (" + g.pct + "%) — " + g.headline;
         const p = document.createElement("p");
         p.style.margin = "0";
         p.textContent = g.tip;
-        card.append(h3, p);
+        card.append(badge, h3, p);
         gapsEl.append(card);
       });
 
       document.getElementById("res-closing").textContent = r.closingLine || "";
+      animateResultsReveal(r);
     }
     if (focusHeading) resultsHeading.focus();
   }
@@ -950,12 +1533,29 @@ ${turnstileScript}
     }
     state.consentAccepted = true;
     if (!state.consentTimestamp) state.consentTimestamp = new Date().toISOString();
+    navDirection = "forward";
     state.step = 0;
     persist();
     render(true);
   });
 
+  introBackBtn.addEventListener("click", () => {
+    navDirection = "back";
+    state.step = Math.max(-1, state.step - 1);
+    persist();
+    render(true);
+  });
+
+  introContinueBtn.addEventListener("click", () => {
+    navDirection = "forward";
+    state.step += 1;
+    persist();
+    render(true);
+  });
+
   qBackBtn.addEventListener("click", () => {
+    cancelAutoAdvance();
+    navDirection = "back";
     state.step = Math.max(-1, state.step - 1);
     persist();
     render(true);
@@ -963,21 +1563,57 @@ ${turnstileScript}
 
   questionView.addEventListener("submit", (e) => {
     e.preventDefault();
-    const q = allQuestions[state.step];
+    cancelAutoAdvance();
+    const stepObj = wizardSteps[state.step];
     const selected = questionView.querySelector("input[name=\\"current_q\\"]:checked");
     if (!selected) {
       showError("Please select an option to continue.");
       return;
     }
-    if (q.kind === "profile") state.profile[q.id] = selected.value;
-    else state.answers[q.id] = selected.value;
+    if (stepObj.kind === "profile") state.profile[stepObj.id] = selected.value;
+    else state.answers[stepObj.id] = selected.value;
+    navDirection = "forward";
     state.step += 1;
     persist();
     render(true);
   });
 
+  // Desktop keyboard support: A-D keys select an option, Enter advances on section-intro
+  document.addEventListener("keydown", (e) => {
+    if (e.isComposing || e.altKey || e.ctrlKey || e.metaKey) return;
+    const tag = (e.target && e.target.tagName) ? e.target.tagName.toLowerCase() : "";
+    if (tag === "input" && e.target.type !== "radio") return;
+    if (tag === "textarea" || tag === "select") return;
+
+    if (state.step >= 0 && state.step < wizardSteps.length) {
+      const stepObj = wizardSteps[state.step];
+      if (stepObj.type === "area-intro" && e.key === "Enter" && tag !== "button") {
+        e.preventDefault();
+        introContinueBtn.click();
+        return;
+      }
+      if (stepObj.type === "question") {
+        const keyUpper = e.key.toUpperCase();
+        if (keyUpper.length === 1 && keyUpper >= "A" && keyUpper <= "Z") {
+          const idx = keyUpper.charCodeAt(0) - 65;
+          if (idx >= 0 && idx < stepObj.options.length) {
+            e.preventDefault();
+            const cards = questionOptions.querySelectorAll(".opt-card");
+            const card = cards[idx];
+            const radio = card ? card.querySelector("input[type=\\"radio\\"]") : null;
+            if (radio && card) {
+              radio.checked = true;
+              selectOptionAndAutoAdvance(stepObj, stepObj.options[idx].text, card);
+            }
+          }
+        }
+      }
+    }
+  });
+
   idBackBtn.addEventListener("click", () => {
-    state.step = allQuestions.length - 1;
+    navDirection = "back";
+    state.step = wizardSteps.length - 1;
     persist();
     render(true);
   });
@@ -1048,8 +1684,9 @@ ${turnstileScript}
     }
 
     if (PREVIEW_MODE) {
+      navDirection = "forward";
       state.results = computeLocalPreviewResults();
-      state.step = allQuestions.length + 1;
+      state.step = wizardSteps.length + 1;
       render(true);
       return;
     }
@@ -1093,8 +1730,9 @@ ${turnstileScript}
         }
         return;
       }
+      navDirection = "forward";
       state.results = data;
-      state.step = allQuestions.length + 1;
+      state.step = wizardSteps.length + 1;
       persist();
       render(true);
     } catch {
@@ -1106,6 +1744,7 @@ ${turnstileScript}
   });
 
   document.getElementById("retake-btn").addEventListener("click", () => {
+    navDirection = "back";
     state.step = 0;
     state.results = null;
     state.clientSubmissionId = makeUuid();

@@ -139,23 +139,28 @@
   "areas": [
     {
       "key": "spaces",
-      "name": "Spaces"
+      "name": "Spaces",
+      "blurb": "Rooms where everyone faces the camera and display help remote people feel present, not like observers."
     },
     {
       "key": "technology",
-      "name": "Technology"
+      "name": "Technology",
+      "blurb": "Clear audio, framing cameras, and one-touch starts remove the most common hybrid meeting friction."
     },
     {
       "key": "equity",
-      "name": "Meeting equity"
+      "name": "Meeting equity",
+      "blurb": "Shared content and inclusive room setups let remote colleagues contribute on equal footing, not just listen."
     },
     {
       "key": "people",
-      "name": "People and habits"
+      "name": "People and habits",
+      "blurb": "Simple shared habits and leader role-modelling make every hybrid call more inclusive and consistent."
     },
     {
       "key": "support",
-      "name": "Support and planning"
+      "name": "Support and planning",
+      "blurb": "Clear cross-functional ownership and room-use data turn one-off fixes into steady improvement."
     }
   ],
   "scoredQuestions": [

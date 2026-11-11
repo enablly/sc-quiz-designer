@@ -1,5 +1,6 @@
 import type { QuizDefinition } from "../types.js";
 import { orderedOptions } from "../domain/scoring.js";
+import { repairMojibake } from "../domain/validator.js";
 
 export interface RenderQuizOptions {
   turnstileSiteKey: string;
@@ -9,7 +10,7 @@ export interface RenderQuizOptions {
 }
 
 export function escapeHtml(str: string): string {
-  return String(str)
+  return repairMojibake(String(str))
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
@@ -18,7 +19,7 @@ export function escapeHtml(str: string): string {
 }
 
 function safeJsonForHtml(value: unknown): string {
-  return JSON.stringify(value)
+  return repairMojibake(JSON.stringify(value))
     .replace(/</g, "\\u003c")
     .replace(/>/g, "\\u003e")
     .replace(/&/g, "\\u0026");
@@ -59,9 +60,9 @@ export function renderQuizHtml(
     quiz.profileQuestions.length + quiz.scoredQuestions.length;
   const estMinutes = Math.max(2, Math.round(totalQuestionCount * 0.15));
   const areaCount = quiz.areas.length;
-  const roadmapText = `~${estMinutes} minutes · ${areaCount} ${
+  const roadmapText = `~${estMinutes} minutes \u00b7 ${areaCount} ${
     areaCount === 1 ? "area" : "areas"
-  } · ${totalQuestionCount} questions · get your readiness score and biggest gap at the end`;
+  } \u00b7 ${totalQuestionCount} questions \u00b7 get your readiness score and biggest gap at the end`;
 
   const gapCopy = quiz.scoring.gapCopy ?? {};
   const clientQuizPayload = {
@@ -292,7 +293,8 @@ ${turnstileScript}
   .seg-grid {
     display: grid;
     grid-template-columns: repeat(var(--area-count, 5), minmax(0, 1fr));
-    gap: 0.4rem;
+    gap: 0.35rem;
+    align-items: start;
   }
   .seg-item {
     display: flex;
@@ -322,11 +324,22 @@ ${turnstileScript}
   }
   .seg-label {
     font-size: 0.72rem;
+    line-height: 1.2;
+    letter-spacing: -0.01em;
     color: var(--muted);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    white-space: normal;
+    overflow-wrap: break-word;
     font-weight: 500;
+  }
+  @media (max-width: 560px) {
+    .seg-grid {
+      gap: 0.25rem;
+    }
+    .seg-label {
+      font-size: 0.64rem;
+      line-height: 1.15;
+      letter-spacing: -0.02em;
+    }
   }
   .seg-item.is-current .seg-label {
     color: var(--accent);
@@ -845,7 +858,7 @@ ${turnstileScript}
         <fieldset class="option-fieldset">
           <legend id="question-legend" tabindex="-1"></legend>
           <div id="question-options" class="options-list"></div>
-          <div class="kbd-hint" aria-hidden="true">Tip: Press A–D to select, or Enter to continue.</div>
+          <div class="kbd-hint" aria-hidden="true">Tip: Press A&ndash;D to select, or Enter to continue.</div>
         </fieldset>
         <div class="actions">
           <button type="button" id="q-back-btn" class="btn btn-secondary" enterkeyhint="previous">Back</button>
@@ -1118,6 +1131,8 @@ ${turnstileScript}
   let turnstileWidgetId = null;
   let turnstileToken = "";
   let autoAdvanceTimer = null;
+  let resultsRafId = null;
+  let resultsGapTimer = null;
   let navDirection = "forward";
 
   // Build segmented area progress DOM once
@@ -1154,13 +1169,13 @@ ${turnstileScript}
     if (!currentStepObj) return;
     if (currentStepObj.type === "area-intro") {
       progressLabel.textContent =
-        currentStepObj.areaName + " · Area " + currentStepObj.areaIndex + " of " + currentStepObj.totalAreas;
+        currentStepObj.areaName + " \\u00b7 Area " + currentStepObj.areaIndex + " of " + currentStepObj.totalAreas;
       progressOverall.textContent =
         currentStepObj.overallIndex + " of " + currentStepObj.totalQuestions + " overall";
     } else {
       progressLabel.textContent =
         currentStepObj.areaName +
-        " · Question " +
+        " \\u00b7 Question " +
         currentStepObj.indexInArea +
         " of " +
         currentStepObj.areaTotal +
@@ -1174,6 +1189,17 @@ ${turnstileScript}
     if (autoAdvanceTimer !== null) {
       clearTimeout(autoAdvanceTimer);
       autoAdvanceTimer = null;
+    }
+  }
+
+  function cancelResultsAnimation() {
+    if (resultsRafId !== null) {
+      cancelAnimationFrame(resultsRafId);
+      resultsRafId = null;
+    }
+    if (resultsGapTimer !== null) {
+      clearTimeout(resultsGapTimer);
+      resultsGapTimer = null;
     }
   }
 
@@ -1290,54 +1316,66 @@ ${turnstileScript}
   }
 
   function animateResultsReveal(r) {
+    cancelResultsAnimation();
     const pctEl = document.getElementById("res-pct");
     const ringArc = document.getElementById("res-ring-arc");
     const heroCopy = document.getElementById("res-hero-copy");
     const gapSection = document.getElementById("res-gap-section");
-    const targetPct = Number(r.readinessPct || 0);
-    const targetOffset = RING_CIRC * (1 - Math.max(0, Math.min(100, targetPct)) / 100);
+    const targetPct = Math.max(0, Math.min(100, Math.round(Number(r.readinessPct || 0))));
+    const targetOffset = RING_CIRC * (1 - targetPct / 100);
 
-    // Final DOM value always set first for accessibility / reduced-motion
-    pctEl.textContent = targetPct + "%";
-    document.getElementById("score-hero").setAttribute("aria-label", "Overall readiness " + targetPct + "%, " + r.band.label);
+    document.getElementById("score-hero").setAttribute(
+      "aria-label",
+      "Overall readiness " + targetPct + "%, " + r.band.label,
+    );
 
     if (prefersReducedMotion()) {
+      pctEl.textContent = targetPct + "%";
       ringArc.style.setProperty("--ring-offset", String(targetOffset));
+      heroCopy.classList.remove("is-pre");
+      gapSection.classList.remove("is-pre");
       return;
     }
 
-    // Ring sweep + rAF easeOutCubic count-up
+    // Start strictly at 0% before first paint so no intermediate number flashes
+    pctEl.textContent = "0%";
     ringArc.style.setProperty("--ring-offset", String(RING_CIRC));
     heroCopy.classList.add("is-pre");
     gapSection.classList.add("is-pre");
 
-    requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
+    const duration = 900;
+    resultsRafId = requestAnimationFrame(() => {
+      resultsRafId = requestAnimationFrame(() => {
         ringArc.style.setProperty("--ring-offset", String(targetOffset));
         heroCopy.classList.remove("is-pre");
+        const start = performance.now();
+        function tick(now) {
+          const elapsed = Math.max(0, now - start);
+          const t = Math.min(1, elapsed / duration);
+          const eased = 1 - Math.pow(1 - t, 3);
+          const current = Math.round(eased * targetPct);
+          pctEl.textContent = (t < 1 ? current : targetPct) + "%";
+          if (t < 1) {
+            resultsRafId = requestAnimationFrame(tick);
+          } else {
+            resultsRafId = null;
+          }
+        }
+        resultsRafId = requestAnimationFrame(tick);
       });
     });
 
-    const duration = 900;
-    const start = performance.now();
-    function tick(now) {
-      const t = Math.min(1, (now - start) / duration);
-      const eased = 1 - Math.pow(1 - t, 3);
-      const current = Math.round(eased * targetPct);
-      pctEl.textContent = (t < 1 ? current : targetPct) + "%";
-      if (t < 1) requestAnimationFrame(tick);
-    }
-    requestAnimationFrame(tick);
-
     // Reveal biggest-gap section LAST after the staggered area bars
     const gapDelay = QUIZ.areas.length * 120 + 260;
-    setTimeout(() => {
+    resultsGapTimer = setTimeout(() => {
+      resultsGapTimer = null;
       gapSection.classList.remove("is-pre");
     }, gapDelay);
   }
 
   function render(focusHeading = false) {
     cancelAutoAdvance();
+    cancelResultsAnimation();
     showError("");
     consentView.hidden = true;
     sectionIntroView.hidden = true;
@@ -1373,7 +1411,7 @@ ${turnstileScript}
         sectionIntroView.hidden = false;
         applyStepTransition(sectionIntroView);
         introKicker.textContent = "Area " + stepObj.areaIndex + " of " + stepObj.totalAreas;
-        introHeading.textContent = "Area " + stepObj.areaIndex + " of " + stepObj.totalAreas + " — " + stepObj.areaName;
+        introHeading.textContent = "Area " + stepObj.areaIndex + " of " + stepObj.totalAreas + " \\u2014 " + stepObj.areaName;
         introBlurb.textContent = stepObj.blurb;
         if (focusHeading) introHeading.focus();
         return;
@@ -1421,7 +1459,7 @@ ${turnstileScript}
         const checkSpan = document.createElement("span");
         checkSpan.className = "opt-check";
         checkSpan.setAttribute("aria-hidden", "true");
-        checkSpan.textContent = "✓";
+        checkSpan.textContent = "\\u2713";
 
         label.append(radio, badge, textSpan, checkSpan);
         questionOptions.append(label);
@@ -1434,7 +1472,7 @@ ${turnstileScript}
     if (state.step === totalWizardSteps) {
       progressContainer.hidden = false;
       updateSegmentedProgress(null);
-      progressLabel.textContent = "Final step · Your details";
+      progressLabel.textContent = "Final step \\u00b7 Your details";
       progressOverall.textContent = totalQuestions + " of " + totalQuestions + " complete";
 
       identityView.hidden = false;
@@ -1463,8 +1501,6 @@ ${turnstileScript}
 
     // Results screen
     progressContainer.hidden = true;
-    resultsView.hidden = false;
-    applyStepTransition(resultsView);
     const r = state.results;
     if (r) {
       document.getElementById("res-band").textContent = r.band.label;
@@ -1510,7 +1546,7 @@ ${turnstileScript}
         badge.className = "gap-badge";
         badge.textContent = "Priority focus area";
         const h3 = document.createElement("h3");
-        h3.textContent = g.areaName + " (" + g.pct + "%) — " + g.headline;
+        h3.textContent = g.areaName + " (" + g.pct + "%) \\u2014 " + g.headline;
         const p = document.createElement("p");
         p.style.margin = "0";
         p.textContent = g.tip;
@@ -1521,6 +1557,8 @@ ${turnstileScript}
       document.getElementById("res-closing").textContent = r.closingLine || "";
       animateResultsReveal(r);
     }
+    resultsView.hidden = false;
+    applyStepTransition(resultsView);
     if (focusHeading) resultsHeading.focus();
   }
 

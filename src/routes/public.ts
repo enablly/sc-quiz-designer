@@ -77,7 +77,7 @@ export function createPublicRouter(deps: PublicRouterDeps): Router {
   router.get("/q/:slug", async (req, res) => {
     const quiz = await deps.store.getQuiz(req.params.slug);
     if (!quiz || quiz.status !== "published") {
-      res.status(404).type("html").send("<h1>Quiz not found</h1><p>This assessment is not published or does not exist.</p>");
+      res.status(404).type("text/html; charset=utf-8").send("<h1>Quiz not found</h1><p>This assessment is not published or does not exist.</p>");
       return;
     }
 
@@ -87,7 +87,7 @@ export function createPublicRouter(deps: PublicRouterDeps): Router {
       previewMode: false,
       standalone: false,
     });
-    res.type("html").send(html);
+    res.type("text/html; charset=utf-8").send(html);
   });
 
   router.post("/api/quizzes/:slug/submit", async (req, res) => {

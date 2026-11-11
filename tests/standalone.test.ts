@@ -76,5 +76,27 @@ describe("Acceptance Test 5: Standalone HTML export & Design upgrade", () => {
     assert.ok(html.includes("score-ring-svg"));
     assert.ok(html.includes("id=\"res-ring-arc\""));
     assert.ok(html.includes("@media (prefers-reduced-motion: reduce)"));
+
+    // 7. Regression checks: clean UTF-8 em-dash, non-truncated .seg-label, and 0% initial ring state
+    assert.ok(html.includes('<p class="co-brand">Steelcase + Logitech \u2014 The Hybrid Equation</p>'));
+    assert.ok(!html.includes("\u00e2\u20ac"));
+    const segLabelBlock = html.match(/\.seg-label\s*\{[^}]+\}/)?.[0] ?? "";
+    assert.ok(segLabelBlock.includes("white-space: normal"));
+    assert.ok(!segLabelBlock.includes("text-overflow: ellipsis"));
+    assert.ok(html.includes('<div id="res-pct" class="score-pct">0%</div>'));
+    assert.ok(!html.includes(">30%<"));
+  });
+
+  it("repairs mojibake in subtitle and option strings during HTML rendering", () => {
+    const corrupted = structuredClone(seed);
+    corrupted.subtitle = "Steelcase + Logitech \u00e2\u20ac\u201d The Hybrid Equation";
+    const html = renderQuizHtml(corrupted, {
+      turnstileSiteKey: "0x4AAAAAAA_test_key",
+      submitEndpoint: "/api/quizzes/hybrid-meeting-readiness/submit",
+      previewMode: false,
+      standalone: false,
+    });
+    assert.ok(html.includes("Steelcase + Logitech \u2014 The Hybrid Equation"));
+    assert.ok(!html.includes("\u00e2\u20ac"));
   });
 });

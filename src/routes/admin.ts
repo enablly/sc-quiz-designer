@@ -207,7 +207,7 @@ export function createAdminRouter(deps: AdminRouterDeps): Router {
       previewMode: true,
       standalone: false,
     });
-    res.type("html").send(html);
+    res.type("text/html; charset=utf-8").send(html);
   });
 
   router.get("/api/admin/quizzes/:slug/standalone", async (req, res) => {
@@ -229,7 +229,7 @@ export function createAdminRouter(deps: AdminRouterDeps): Router {
       "Content-Disposition",
       `attachment; filename="${quiz.slug}-standalone.html"`,
     );
-    res.type("html").send(html);
+    res.type("text/html; charset=utf-8").send(html);
   });
 
   router.get("/api/admin/quizzes/:slug/export", async (req, res) => {

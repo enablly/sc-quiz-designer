@@ -9,6 +9,22 @@ export interface ValidationResult {
   normalized?: QuizDefinition;
 }
 
+/** Repair common UTF-8-read-as-Windows-1252 mojibake sequences in strings. */
+export function repairMojibake(input: string): string {
+  return input
+    .replace(/\u00e2\u20ac\u201d/g, "\u2014") // â€” -> — (em-dash)
+    .replace(/\u00e2\u20ac\u201c/g, "\u2013") // â€“ -> – (en-dash)
+    .replace(/\u00e2\u20ac\u2122/g, "\u2019") // â€™ -> ’
+    .replace(/\u00e2\u20ac\u02dc/g, "\u2018") // â€˜ -> ‘
+    .replace(/\u00e2\u20ac\u0153/g, "\u201c") // â€œ -> “
+    .replace(/\u00e2\u20ac\u009d/g, "\u201d") // â€ -> ”
+    .replace(/\u00c2\u00b7/g, "\u00b7");      // Â· -> · (middle dot)
+}
+
+function cleanStr(val: unknown): string {
+  return repairMojibake(String(val ?? "").trim());
+}
+
 function normalizeBand(raw: ScoringBand): ScoringBand {
   const min = typeof raw.min === "number" ? raw.min : Number(raw.minPct);
   const max = typeof raw.max === "number" ? raw.max : Number(raw.maxPct);
@@ -16,87 +32,106 @@ function normalizeBand(raw: ScoringBand): ScoringBand {
     band: Number(raw.band),
     min,
     max,
-    label: String(raw.label ?? "").trim(),
-    headline: String(raw.headline ?? "").trim(),
-    body: String(raw.body ?? "").trim(),
+    label: cleanStr(raw.label),
+    headline: cleanStr(raw.headline),
+    body: cleanStr(raw.body),
   };
 }
 
 export function normalizeQuizDefinition(input: QuizDefinition): QuizDefinition {
   const clone: QuizDefinition = structuredClone(input);
-  clone.slug = String(clone.slug ?? "").trim().toLowerCase();
-  clone.title = String(clone.title ?? "").trim();
-  clone.subtitle = String(clone.subtitle ?? "").trim();
+  clone.slug = cleanStr(clone.slug).toLowerCase();
+  clone.title = cleanStr(clone.title);
+  clone.subtitle = cleanStr(clone.subtitle);
   clone.status = clone.status === "published" ? "published" : "draft";
   clone.schemaVersion = Number(clone.schemaVersion || 1);
   clone.theme = {
-    accent: String(clone.theme?.accent || "#6b4fbb").trim(),
-    headerText: String(clone.theme?.headerText || "").trim(),
-    logoUrl: clone.theme?.logoUrl ? String(clone.theme.logoUrl).trim() : "",
+    accent: cleanStr(clone.theme?.accent || "#6b4fbb"),
+    headerText: cleanStr(clone.theme?.headerText),
+    logoUrl: clone.theme?.logoUrl ? cleanStr(clone.theme.logoUrl) : "",
   };
   clone.consent = {
-    textVersion: String(clone.consent?.textVersion || "").trim(),
-    text: String(clone.consent?.text || "").trim(),
+    textVersion: cleanStr(clone.consent?.textVersion),
+    text: cleanStr(clone.consent?.text),
   };
   clone.sources = Array.isArray(clone.sources)
-    ? clone.sources.map((s) => String(s).trim()).filter(Boolean)
+    ? clone.sources.map((s) => cleanStr(s)).filter(Boolean)
     : [];
   clone.profileQuestions = Array.isArray(clone.profileQuestions)
     ? clone.profileQuestions.map((pq) => ({
-        id: String(pq.id ?? "").trim(),
-        ...(pq.label !== undefined ? { label: String(pq.label).trim() } : {}),
+        id: cleanStr(pq.id),
+        ...(pq.label !== undefined ? { label: cleanStr(pq.label) } : {}),
         options: Array.isArray(pq.options)
           ? pq.options.map((o) => ({
-              code: String(o.code ?? "").trim(),
-              text: String(o.text ?? "").trim(),
+              code: cleanStr(o.code),
+              text: cleanStr(o.text),
             }))
           : [],
       }))
     : [];
   clone.areas = Array.isArray(clone.areas)
     ? clone.areas.map((a) => ({
-        key: String(a.key ?? "").trim(),
-        name: String(a.name ?? "").trim(),
-        ...(a.blurb !== undefined ? { blurb: String(a.blurb).trim() } : {}),
+        key: cleanStr(a.key),
+        name: cleanStr(a.name),
+        ...(a.blurb !== undefined ? { blurb: cleanStr(a.blurb) } : {}),
       }))
     : [];
   clone.scoredQuestions = Array.isArray(clone.scoredQuestions)
     ? clone.scoredQuestions.map((sq) => ({
-        id: String(sq.id ?? "").trim(),
-        area: String(sq.area ?? "").trim(),
-        text: String(sq.text ?? "").trim(),
-        ...(sq.displayOrder !== undefined ? { displayOrder: [...sq.displayOrder] } : {}),
+        id: cleanStr(sq.id),
+        area: cleanStr(sq.area),
+        text: cleanStr(sq.text),
+        ...(sq.displayOrder !== undefined
+          ? {
+              displayOrder: sq.displayOrder.map((d) =>
+                typeof d === "string" ? cleanStr(d) : d,
+              ),
+            }
+          : {}),
         options: Array.isArray(sq.options)
           ? sq.options.map((o) => ({
               points: Number(o.points),
-              text: String(o.text ?? "").trim(),
+              text: cleanStr(o.text),
             }))
           : [],
       }))
     : [];
+  const rawGapCopy = clone.scoring?.gapCopy ?? {};
+  const cleanedGapCopy: Record<string, { headline: string; tip: string }> = {};
+  for (const [k, v] of Object.entries(rawGapCopy)) {
+    cleanedGapCopy[cleanStr(k)] = {
+      headline: cleanStr(v?.headline),
+      tip: cleanStr(v?.tip),
+    };
+  }
+  const rawFallbacks = clone.scoring?.fallbackParagraphs ?? {};
+  const cleanedFallbacks: Record<string, string> = {};
+  for (const [k, v] of Object.entries(rawFallbacks)) {
+    cleanedFallbacks[cleanStr(k)] = cleanStr(v);
+  }
   clone.scoring = {
-    scoringVersion: String(clone.scoring?.scoringVersion || "v1-equal").trim(),
+    scoringVersion: cleanStr(clone.scoring?.scoringVersion || "v1-equal"),
     bands: Array.isArray(clone.scoring?.bands)
       ? clone.scoring.bands.map(normalizeBand)
       : [],
-    gapCopy: clone.scoring?.gapCopy ?? {},
-    fallbackParagraphs: clone.scoring?.fallbackParagraphs ?? {},
+    gapCopy: cleanedGapCopy,
+    fallbackParagraphs: cleanedFallbacks,
     priorityRule: {
       bandsAtOrBelow: Number(clone.scoring?.priorityRule?.bandsAtOrBelow ?? 2),
       roleIds: clone.scoring?.priorityRule?.roleIds ?? ["p1"],
       roleValues: Array.isArray(clone.scoring?.priorityRule?.roleValues)
-        ? clone.scoring.priorityRule.roleValues.map((v) => String(v))
+        ? clone.scoring.priorityRule.roleValues.map((v) => cleanStr(v))
         : [],
       sizeIds: clone.scoring?.priorityRule?.sizeIds ?? ["p3"],
       sizeValues: Array.isArray(clone.scoring?.priorityRule?.sizeValues)
-        ? clone.scoring.priorityRule.sizeValues.map((v) => String(v))
+        ? clone.scoring.priorityRule.sizeValues.map((v) => cleanStr(v))
         : [],
     },
   };
   clone.closing = {
     livePhase: clone.closing?.livePhase === "post" ? "post" : "pre",
-    preEvent: String(clone.closing?.preEvent || "").trim(),
-    postEvent: String(clone.closing?.postEvent || "").trim(),
+    preEvent: cleanStr(clone.closing?.preEvent),
+    postEvent: cleanStr(clone.closing?.postEvent),
   };
   clone.integration = {
     hubspot: {

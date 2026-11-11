@@ -55,4 +55,12 @@ describe("Acceptance Test 4: Definition validator", () => {
     assert.equal(res2.valid, false);
     assert.ok(res2.errors.some((e) => /at least one option/i.test(e)));
   });
+
+  it("repairs Windows-1252 UTF-8 mojibake in normalized quiz definitions", () => {
+    const corrupted = structuredClone(seed);
+    corrupted.subtitle = "Steelcase + Logitech \u00e2\u20ac\u201d The Hybrid Equation";
+    const res = validateQuizDefinition(corrupted);
+    assert.equal(res.valid, true);
+    assert.equal(res.normalized?.subtitle, "Steelcase + Logitech \u2014 The Hybrid Equation");
+  });
 });

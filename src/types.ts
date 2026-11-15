@@ -4,17 +4,21 @@ export type HubSpotSyncStatus = "pending" | "synced" | "failed";
 export type GeminiStatus = "ok" | "fallback";
 
 export interface QuizLogoSlot {
-  /** Served path (e.g. /q/hybrid-meeting-readiness/logos/1) or external https URL */
-  url?: string;
-  /** Uploaded image encoded as data:image/(png|jpeg|svg+xml);base64,... */
-  dataUrl?: string;
+  /** Cloud Storage object key, e.g. "quizzes/hybrid-meeting-readiness/logos/logo1-1763210000-a1b2c3.png" */
+  objectKey: string;
+  /** MIME type: "image/png" | "image/jpeg" | "image/svg+xml" */
+  contentType: string;
+  /** Original uploaded file name */
+  fileName?: string;
+  /** Accessible alt text */
   alt?: string;
+  /** ISO 8601 upload timestamp */
+  uploadedAt?: string;
 }
 
 export interface QuizTheme {
   accent: string;
   headerText: string;
-  logoUrl?: string;
   logo1?: QuizLogoSlot;
   logo2?: QuizLogoSlot;
 }

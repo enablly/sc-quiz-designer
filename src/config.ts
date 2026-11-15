@@ -9,6 +9,7 @@ export interface AppConfig {
   geminiApiKey: string;
   geminiModel: string;
   googleCloudProject: string;
+  gcsLogoBucket: string;
   useMemoryStore: boolean;
 }
 
@@ -29,6 +30,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     geminiApiKey: (env.GEMINI_API_KEY || "").trim(),
     geminiModel: (env.GEMINI_MODEL || "gemini-2.5-flash-lite").trim(),
     googleCloudProject,
+    gcsLogoBucket: (
+      env.GCS_LOGO_BUCKET || "run-sources-quiz-designer-asia-southeast1"
+    ).trim(),
     useMemoryStore: forceMemory || (!googleCloudProject && !env.FIRESTORE_EMULATOR_HOST),
   };
 }

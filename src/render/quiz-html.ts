@@ -60,26 +60,24 @@ export function resolveQuizLogos(
   quiz: QuizDefinition,
   opts: RenderQuizOptions,
 ): ResolvedLogo[] {
+  let baseOrigin = "";
+  if (opts.standalone && /^https?:\/\//i.test(opts.submitEndpoint)) {
+    try {
+      baseOrigin = new URL(opts.submitEndpoint).origin;
+    } catch {
+      baseOrigin = "";
+    }
+  }
+
   const resolveSlot = (
     slot: QuizLogoSlot | undefined,
     slotNum: 1 | 2,
     fallbackAlt: string,
   ): ResolvedLogo | null => {
-    if (!slot) return null;
+    if (!slot?.objectKey) return null;
     const alt = slot.alt?.trim() || fallbackAlt;
-    if (opts.previewMode || opts.standalone) {
-      if (slot.dataUrl) return { src: slot.dataUrl, alt };
-      if (slot.url) return { src: slot.url, alt };
-      return null;
-    }
-    if (slot.url) return { src: slot.url, alt };
-    if (slot.dataUrl) {
-      return {
-        src: `/q/${encodeURIComponent(quiz.slug)}/logos/${slotNum}`,
-        alt,
-      };
-    }
-    return null;
+    const src = `${baseOrigin}/q/${encodeURIComponent(quiz.slug)}/logos/${slotNum}?key=${encodeURIComponent(slot.objectKey)}`;
+    return { src, alt };
   };
 
   const logos: ResolvedLogo[] = [];
@@ -87,17 +85,6 @@ export function resolveQuizLogos(
   const l2 = resolveSlot(quiz.theme?.logo2, 2, "Logitech");
   if (l1) logos.push(l1);
   if (l2) logos.push(l2);
-
-  if (
-    logos.length === 0 &&
-    quiz.theme?.logoUrl &&
-    /^https?:\/\//i.test(quiz.theme.logoUrl)
-  ) {
-    logos.push({
-      src: quiz.theme.logoUrl,
-      alt: quiz.theme.headerText || quiz.title,
-    });
-  }
   return logos;
 }
 

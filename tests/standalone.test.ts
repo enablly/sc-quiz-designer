@@ -97,9 +97,6 @@ describe("Acceptance Test 5: Standalone HTML export & Design upgrade", () => {
   });
 
   it("renders dual logos side by side, single logo alone, and falls back to text lockup when no logo is uploaded", () => {
-    const png1 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
-    const svg2 = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMCIgaGVpZ2h0PSIxMCI+PC9zdmc+";
-
     // 0 logos -> text lockup
     const htmlNone = renderQuizHtml(seed, {
       turnstileSiteKey: "k",
@@ -110,9 +107,14 @@ describe("Acceptance Test 5: Standalone HTML export & Design upgrade", () => {
     assert.ok(!htmlNone.includes('<div class="brand-logos"'));
     assert.ok(htmlNone.includes("Work Better by Steelcase"));
 
-    // 1 logo -> single logo
+    // 1 logo -> single logo referencing stored objectKey
     const oneLogoQuiz = structuredClone(seed);
-    oneLogoQuiz.theme.logo1 = { url: "/q/hybrid-meeting-readiness/logos/1", dataUrl: png1, alt: "Steelcase Logo" };
+    oneLogoQuiz.theme.logo1 = {
+      objectKey: "quizzes/hybrid-meeting-readiness/logos/logo1-123.png",
+      contentType: "image/png",
+      fileName: "steelcase.png",
+      alt: "Steelcase Logo",
+    };
     const htmlOne = renderQuizHtml(oneLogoQuiz, {
       turnstileSiteKey: "k",
       submitEndpoint: "/submit",
@@ -120,20 +122,37 @@ describe("Acceptance Test 5: Standalone HTML export & Design upgrade", () => {
       standalone: false,
     });
     assert.ok(htmlOne.includes('<div class="brand-logos"'));
-    assert.ok(htmlOne.includes("/q/hybrid-meeting-readiness/logos/1"));
+    assert.ok(
+      htmlOne.includes(
+        "/q/hybrid-meeting-readiness/logos/1?key=quizzes%2Fhybrid-meeting-readiness%2Flogos%2Flogo1-123.png",
+      ),
+    );
     assert.ok(!htmlOne.includes('<span class="brand-logo-sep"'));
 
     // 2 logos -> side by side with separator
     const twoLogoQuiz = structuredClone(oneLogoQuiz);
-    twoLogoQuiz.theme.logo2 = { url: "/q/hybrid-meeting-readiness/logos/2", dataUrl: svg2, alt: "Logitech Logo" };
+    twoLogoQuiz.theme.logo2 = {
+      objectKey: "quizzes/hybrid-meeting-readiness/logos/logo2-456.svg",
+      contentType: "image/svg+xml",
+      fileName: "logitech.svg",
+      alt: "Logitech Logo",
+    };
     const htmlTwo = renderQuizHtml(twoLogoQuiz, {
       turnstileSiteKey: "k",
       submitEndpoint: "/submit",
       previewMode: false,
       standalone: false,
     });
-    assert.ok(htmlTwo.includes("/q/hybrid-meeting-readiness/logos/1"));
-    assert.ok(htmlTwo.includes("/q/hybrid-meeting-readiness/logos/2"));
+    assert.ok(
+      htmlTwo.includes(
+        "/q/hybrid-meeting-readiness/logos/1?key=quizzes%2Fhybrid-meeting-readiness%2Flogos%2Flogo1-123.png",
+      ),
+    );
+    assert.ok(
+      htmlTwo.includes(
+        "/q/hybrid-meeting-readiness/logos/2?key=quizzes%2Fhybrid-meeting-readiness%2Flogos%2Flogo2-456.svg",
+      ),
+    );
     assert.ok(htmlTwo.includes('<span class="brand-logo-sep"'));
   });
 

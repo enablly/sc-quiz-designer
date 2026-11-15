@@ -8,7 +8,12 @@ import type {
 
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
-export const DATA_IMAGE_RE = /^data:image\/(png|jpeg|svg\+xml);base64,[A-Za-z0-9+/=\s]+$/i;
+export const LOGO_OBJECT_KEY_RE = /^quizzes\/[a-z0-9-]+\/logos\/[a-zA-Z0-9._-]+$/;
+export const ALLOWED_LOGO_CONTENT_TYPES = new Set([
+  "image/png",
+  "image/jpeg",
+  "image/svg+xml",
+]);
 
 export interface ValidationResult {
   valid: boolean;
@@ -184,14 +189,18 @@ export function resolvePageCopy(quiz: Partial<QuizDefinition>): QuizPageCopy {
 
 function normalizeLogoSlot(raw?: QuizLogoSlot): QuizLogoSlot | undefined {
   if (!raw || typeof raw !== "object") return undefined;
-  const url = cleanStr(raw.url);
-  const dataUrl = String(raw.dataUrl ?? "").trim().replace(/\s+/g, "");
+  const objectKey = cleanStr(raw.objectKey);
+  const contentType = cleanStr(raw.contentType).toLowerCase();
+  const fileName = cleanStr(raw.fileName);
   const alt = cleanStr(raw.alt);
-  if (!url && !dataUrl && !alt) return undefined;
+  const uploadedAt = cleanStr(raw.uploadedAt);
+  if (!objectKey) return undefined;
   return {
-    ...(url ? { url } : {}),
-    ...(dataUrl ? { dataUrl } : {}),
+    objectKey,
+    contentType: contentType || "image/png",
+    ...(fileName ? { fileName } : {}),
     ...(alt ? { alt } : {}),
+    ...(uploadedAt ? { uploadedAt } : {}),
   };
 }
 
@@ -220,7 +229,6 @@ export function normalizeQuizDefinition(input: QuizDefinition): QuizDefinition {
   clone.theme = {
     accent: cleanStr(clone.theme?.accent || "#6b4fbb"),
     headerText: cleanStr(clone.theme?.headerText),
-    logoUrl: clone.theme?.logoUrl ? cleanStr(clone.theme.logoUrl) : "",
     ...(logo1 ? { logo1 } : {}),
     ...(logo2 ? { logo2 } : {}),
   };
@@ -354,11 +362,12 @@ export function validateQuizDefinition(raw: unknown): ValidationResult {
     ["logo1", def.theme.logo1],
     ["logo2", def.theme.logo2],
   ] as const) {
-    if (slot?.dataUrl) {
-      if (!DATA_IMAGE_RE.test(slot.dataUrl)) {
-        errors.push(`Theme ${slotName} must be a valid PNG, JPG, or SVG base64 data URL.`);
-      } else if (slot.dataUrl.length > 800_000) {
-        errors.push(`Theme ${slotName} exceeds the maximum allowed size (~550 KB).`);
+    if (slot) {
+      if (!LOGO_OBJECT_KEY_RE.test(slot.objectKey)) {
+        errors.push(`Theme ${slotName} must reference a stored Cloud Storage object key (quizzes/<slug>/logos/<file>).`);
+      }
+      if (!ALLOWED_LOGO_CONTENT_TYPES.has(slot.contentType)) {
+        errors.push(`Theme ${slotName} has unsupported content type '${slot.contentType}' (allowed: image/png, image/jpeg, image/svg+xml).`);
       }
     }
   }

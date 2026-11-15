@@ -1,12 +1,15 @@
-import { Router } from "express";
+import crypto from "node:crypto";
+import express, { Router } from "express";
 import type { AppConfig } from "../config.js";
 import { buildSubmissionsCsv, sortSubmissionsForExport } from "../domain/csv.js";
-import { DATA_IMAGE_RE, validateQuizDefinition } from "../domain/validator.js";
+import { computeQuizStats } from "../domain/stats.js";
+import { validateQuizDefinition } from "../domain/validator.js";
 import { renderAdminBuilderHtml, renderAdminLoginHtml } from "../render/admin-html.js";
 import { renderQuizHtml } from "../render/quiz-html.js";
 import { runRetrySweep } from "../services/sync-pipeline.js";
+import type { LogoStore } from "../store/logo-store.js";
 import type { QuizStore } from "../store/store.js";
-import type { QuizDefinition } from "../types.js";
+import type { QuizDefinition, QuizLogoSlot, QuizTheme } from "../types.js";
 import {
   clearAdminSessionCookie,
   isAdminAuthenticated,
@@ -14,8 +17,74 @@ import {
   setAdminSessionCookie,
 } from "./auth.js";
 
+function detectLogoMimeAndExt(
+  buf: Buffer,
+  rawContentType: string,
+): { contentType: string; ext: string } | null {
+  if (!buf || buf.length === 0) return null;
+  // Check PNG magic bytes: 89 50 4E 47 0D 0A 1A 0A
+  if (
+    buf.length >= 8 &&
+    buf[0] === 0x89 &&
+    buf[1] === 0x50 &&
+    buf[2] === 0x4e &&
+    buf[3] === 0x47
+  ) {
+    return { contentType: "image/png", ext: "png" };
+  }
+  // Check JPEG magic bytes: FF D8 FF
+  if (buf.length >= 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) {
+    return { contentType: "image/jpeg", ext: "jpg" };
+  }
+  // Check SVG XML content
+  const headText = buf.subarray(0, Math.min(buf.length, 4096)).toString("utf8");
+  const ct = rawContentType.split(";")[0]?.trim().toLowerCase() ?? "";
+  if (
+    (ct === "image/svg+xml" || ct === "application/octet-stream" || ct === "") &&
+    /<svg[\s>]/i.test(headText)
+  ) {
+    return { contentType: "image/svg+xml", ext: "svg" };
+  }
+  return null;
+}
+
+function extFromLogoSlot(slot: QuizLogoSlot): string {
+  if (slot.contentType === "image/jpeg") return "jpg";
+  if (slot.contentType === "image/svg+xml") return "svg";
+  const m = slot.objectKey.match(/\.(png|jpg|jpeg|svg)$/i);
+  return m ? m[1]!.toLowerCase() : "png";
+}
+
+async function copyQuizLogosToSlug(
+  logoStore: LogoStore,
+  theme: QuizTheme,
+  targetSlug: string,
+): Promise<QuizTheme> {
+  const nextTheme: QuizTheme = structuredClone(theme);
+  for (const [slotNum, slotKey] of [
+    [1, "logo1"],
+    [2, "logo2"],
+  ] as const) {
+    const srcSlot = nextTheme[slotKey];
+    if (!srcSlot?.objectKey) continue;
+    const ext = extFromLogoSlot(srcSlot);
+    const rand = crypto.randomBytes(6).toString("hex");
+    const newObjectKey = `quizzes/${targetSlug}/logos/logo${slotNum}-${Date.now()}-${rand}.${ext}`;
+    const copied = await logoStore.copyLogo(srcSlot.objectKey, newObjectKey);
+    if (copied) {
+      nextTheme[slotKey] = {
+        ...srcSlot,
+        objectKey: newObjectKey,
+        uploadedAt: new Date().toISOString(),
+      };
+    }
+  }
+  return nextTheme;
+}
+
 export interface AdminRouterDeps {
   store: QuizStore;
+  logoStore: LogoStore;
   config: AppConfig;
   fetchFn?: typeof fetch;
 }
@@ -70,7 +139,37 @@ export function createAdminRouter(deps: AdminRouterDeps): Router {
 
   router.get("/api/admin/quizzes", async (_req, res) => {
     const list = await deps.store.listQuizzes();
-    res.json(list);
+    const enriched = await Promise.all(
+      list.map(async (q) => {
+        const subs = await deps.store.listSubmissionsBySlug(q.slug);
+        const totalCompletions = subs.length;
+        const averageReadinessPct =
+          totalCompletions > 0
+            ? Math.round(
+                subs.reduce((s, r) => s + (r.result?.readinessPct ?? 0), 0) /
+                  totalCompletions,
+              )
+            : null;
+        return {
+          ...q,
+          publicPath: `/q/${encodeURIComponent(q.slug)}`,
+          submissionCount: totalCompletions,
+          totalCompletions,
+          averageReadinessPct,
+        };
+      }),
+    );
+    res.json(enriched);
+  });
+
+  router.get("/api/admin/quizzes/:slug/stats", async (req, res) => {
+    const quiz = await deps.store.getQuiz(req.params.slug);
+    if (!quiz) {
+      res.status(404).json({ error: "Quiz not found." });
+      return;
+    }
+    const submissions = await deps.store.listSubmissionsBySlug(quiz.slug);
+    res.json(computeQuizStats(quiz, submissions));
   });
 
   router.get("/api/admin/quizzes/:slug", async (req, res) => {
@@ -115,15 +214,17 @@ export function createAdminRouter(deps: AdminRouterDeps): Router {
     }
     const oldSlug = req.params.slug;
     const newSlug = check.normalized.slug;
+    const toSave = structuredClone(check.normalized);
     if (oldSlug !== newSlug) {
       const collision = await deps.store.getQuiz(newSlug);
       if (collision) {
         res.status(409).json({ error: `Cannot rename: slug '${newSlug}' already exists.` });
         return;
       }
+      toSave.theme = await copyQuizLogosToSlug(deps.logoStore, toSave.theme, newSlug);
       await deps.store.deleteQuiz(oldSlug);
     }
-    const rev = await deps.store.saveQuiz(check.normalized, "Saved from builder");
+    const rev = await deps.store.saveQuiz(toSave, "Saved from builder");
     res.json(rev.definition);
   });
 
@@ -145,19 +246,21 @@ export function createAdminRouter(deps: AdminRouterDeps): Router {
     const newSlug = String((req.body as Record<string, unknown>)?.slug ?? `${src.slug}-copy`)
       .trim()
       .toLowerCase();
+    if (await deps.store.getQuiz(newSlug)) {
+      res.status(409).json({ error: `Slug '${newSlug}' already exists.` });
+      return;
+    }
+    const copiedTheme = await copyQuizLogosToSlug(deps.logoStore, src.theme, newSlug);
     const copy: QuizDefinition = {
       ...structuredClone(src),
       slug: newSlug,
       title: `${src.title} (Copy)`,
       status: "draft",
+      theme: copiedTheme,
     };
     const check = validateQuizDefinition(copy);
     if (!check.valid || !check.normalized) {
       res.status(400).json({ errors: check.errors });
-      return;
-    }
-    if (await deps.store.getQuiz(newSlug)) {
-      res.status(409).json({ error: `Slug '${newSlug}' already exists.` });
       return;
     }
     const rev = await deps.store.saveQuiz(check.normalized, `Duplicated from ${src.slug}`);
@@ -242,43 +345,100 @@ export function createAdminRouter(deps: AdminRouterDeps): Router {
     res.json(sortSubmissionsForExport(submissions));
   });
 
-  router.post("/api/admin/quizzes/:slug/logos/:slot", async (req, res) => {
-    const { slug, slot } = req.params;
-    if (slot !== "1" && slot !== "2") {
-      res.status(400).json({ error: "Logo slot must be '1' or '2'." });
-      return;
-    }
-    const quiz = await deps.store.getQuiz(slug);
-    if (!quiz) {
-      res.status(404).json({ error: "Quiz not found." });
-      return;
-    }
-    const body = (req.body ?? {}) as Record<string, unknown>;
-    const dataUrl = String(body.dataUrl ?? "").trim().replace(/\s+/g, "");
-    const alt = String(body.alt ?? `Logo ${slot}`).trim();
-    if (!dataUrl || !DATA_IMAGE_RE.test(dataUrl)) {
-      res.status(400).json({ error: "Logo must be a valid PNG, JPG, or SVG base64 data URL." });
-      return;
-    }
-    if (dataUrl.length > 800_000) {
-      res.status(400).json({ error: "Logo exceeds the maximum allowed size (~550 KB)." });
-      return;
-    }
-    const slotKey = slot === "1" ? "logo1" : "logo2";
-    const updated: QuizDefinition = {
-      ...structuredClone(quiz),
-      theme: {
-        ...quiz.theme,
-        [slotKey]: {
-          url: `/q/${encodeURIComponent(quiz.slug)}/logos/${slot}?v=${Date.now()}`,
-          dataUrl,
-          alt: alt || `Logo ${slot}`,
+  router.post(
+    "/api/admin/quizzes/:slug/logos/:slot",
+    express.raw({
+      type: [
+        "image/png",
+        "image/jpeg",
+        "image/jpg",
+        "image/svg+xml",
+        "application/octet-stream",
+      ],
+      limit: "5mb",
+    }),
+    async (req, res) => {
+      const { slug, slot } = req.params;
+      if (slot !== "1" && slot !== "2") {
+        res.status(400).json({ error: "Logo slot must be '1' or '2'." });
+        return;
+      }
+      const quiz = await deps.store.getQuiz(slug);
+      if (!quiz) {
+        res.status(404).json({ error: "Quiz not found." });
+        return;
+      }
+      if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
+        res.status(400).json({
+          error: "Please upload a valid PNG, JPG, or SVG image file.",
+        });
+        return;
+      }
+      const detected = detectLogoMimeAndExt(
+        req.body,
+        String(req.headers["content-type"] ?? ""),
+      );
+      if (!detected) {
+        res.status(400).json({
+          error: "Unsupported image file format. Please upload a PNG, JPG, or SVG file.",
+        });
+        return;
+      }
+
+      const rawFileName = String(req.headers["x-logo-filename"] ?? "").trim();
+      let fileName = "";
+      if (rawFileName) {
+        try {
+          fileName = decodeURIComponent(rawFileName).slice(0, 120);
+        } catch {
+          fileName = rawFileName.slice(0, 120);
+        }
+      }
+
+      const rawAlt = String(req.headers["x-logo-alt"] ?? "").trim();
+      let alt = "";
+      if (rawAlt) {
+        try {
+          alt = decodeURIComponent(rawAlt).trim().slice(0, 120);
+        } catch {
+          alt = rawAlt.slice(0, 120);
+        }
+      }
+      if (!alt) {
+        alt = slot === "1" ? "Logo 1" : "Logo 2";
+      }
+
+      const rand = crypto.randomBytes(6).toString("hex");
+      const objectKey = `quizzes/${quiz.slug}/logos/logo${slot}-${Date.now()}-${rand}.${detected.ext}`;
+
+      try {
+        await deps.logoStore.putLogo(objectKey, req.body, detected.contentType);
+      } catch (err) {
+        console.error("Failed to store logo in Cloud Storage:", err);
+        res.status(500).json({
+          error: "Failed to store logo file in Cloud Storage: " + (err as Error).message,
+        });
+        return;
+      }
+
+      const slotKey = slot === "1" ? "logo1" : "logo2";
+      const updated: QuizDefinition = {
+        ...structuredClone(quiz),
+        theme: {
+          ...quiz.theme,
+          [slotKey]: {
+            objectKey,
+            contentType: detected.contentType,
+            ...(fileName ? { fileName } : {}),
+            alt,
+            uploadedAt: new Date().toISOString(),
+          },
         },
-      },
-    };
-    const rev = await deps.store.saveQuiz(updated, `Uploaded logo ${slot}`);
-    res.json(rev.definition);
-  });
+      };
+      const rev = await deps.store.saveQuiz(updated, `Uploaded logo ${slot}`);
+      res.json(rev.definition);
+    },
+  );
 
   router.delete("/api/admin/quizzes/:slug/logos/:slot", async (req, res) => {
     const { slug, slot } = req.params;

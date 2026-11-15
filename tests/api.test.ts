@@ -21,6 +21,7 @@ function makeConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     geminiApiKey: "",
     geminiModel: "gemini-2.5-flash-lite",
     googleCloudProject: "",
+    gcsLogoBucket: "test-bucket",
     useMemoryStore: true,
     ...overrides,
   };
@@ -241,34 +242,112 @@ describe("Engine, Admin API, Retries, and CSV Export", () => {
     assert.ok(lines[2]!.includes("AV Consultant"));
     assert.ok(lines[2]!.includes("Biotech"));
     assert.ok(lines[2]!.includes("Middle East"));
+
+    // Verify Central Quiz Repository list includes totalCompletions and publicPath
+    const rList = await fetch(`${srv.baseUrl}/api/admin/quizzes`, {
+      headers: { Authorization: "Bearer secret-admin-token" },
+    });
+    assert.equal(rList.status, 200);
+    const quizList = (await rList.json()) as Array<{
+      slug: string;
+      status: string;
+      publicPath: string;
+      totalCompletions: number;
+      averageReadinessPct: number;
+    }>;
+    const repoItem = quizList.find((q) => q.slug === "hybrid-meeting-readiness");
+    assert.ok(repoItem);
+    assert.equal(repoItem.publicPath, "/q/hybrid-meeting-readiness");
+    assert.equal(repoItem.totalCompletions, 2);
+    assert.equal(repoItem.averageReadinessPct, 50); // (0% + 100%) / 2
+
+    // Verify server-side per-quiz statistics & per-question breakdown (no PII!)
+    const rStats = await fetch(`${srv.baseUrl}/api/admin/quizzes/hybrid-meeting-readiness/stats`, {
+      headers: { Authorization: "Bearer secret-admin-token" },
+    });
+    assert.equal(rStats.status, 200);
+    const statsRaw = await rStats.text();
+    assert.ok(!statsRaw.includes("jane.doe@company.com"), "Stats response must not expose respondent emails");
+    assert.ok(!statsRaw.includes("nonpriority@other.com"), "Stats response must not expose respondent emails");
+    assert.ok(!statsRaw.includes("Jane Doe"), "Stats response must not expose respondent names");
+
+    const stats = JSON.parse(statsRaw) as {
+      totalCompletions: number;
+      averageReadinessPct: number;
+      bands: Array<{ band: number; count: number; pct: number }>;
+      areas: Array<{ key: string; averagePct: number; averageScore: number; maxScore: number }>;
+      profileQuestions: Array<{
+        id: string;
+        totalResponses: number;
+        options: Array<{ code: string; count: number; pct: number; isMostPicked: boolean }>;
+      }>;
+      scoredQuestions: Array<{
+        id: string;
+        totalResponses: number;
+        options: Array<{ text: string; points: number; count: number; pct: number; isMostPicked: boolean }>;
+      }>;
+    };
+    assert.equal(stats.totalCompletions, 2);
+    assert.equal(stats.averageReadinessPct, 50);
+    assert.equal(stats.bands.find((b) => b.band === 1)?.count, 1);
+    assert.equal(stats.bands.find((b) => b.band === 1)?.pct, 50);
+    assert.equal(stats.bands.find((b) => b.band === 4)?.count, 1);
+    assert.equal(stats.bands.find((b) => b.band === 4)?.pct, 50);
+    assert.equal(stats.areas.length, 3);
+    assert.equal(stats.areas[0]!.averagePct, 50);
+    assert.equal(stats.areas[0]!.averageScore, 4.5);
+    assert.equal(stats.areas[0]!.maxScore, 9);
+    assert.equal(stats.profileQuestions.length, 4);
+    assert.equal(stats.scoredQuestions.length, 9);
+    const q1Stats = stats.scoredQuestions.find((q) => q.id === "q1")!;
+    assert.equal(q1Stats.totalResponses, 2);
+    assert.equal(q1Stats.options.filter((o) => o.isMostPicked).length, 2); // 1 pick for 3pt, 1 pick for 0pt -> tied at 1 (50% each)
   });
 
-  it("uploads, serves, and removes Logo 1 and Logo 2 via admin and public endpoints", async () => {
+  it("uploads binary logo files to storage, serves them per quiz, copies them on duplicate, and removes cleanly", async () => {
     const srv = await startTestServer(makeConfig());
     cleanup = srv.close;
 
-    const pngDataUrl = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
-    const svgDataUrl = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMCIgaGVpZ2h0PSIxMCI+PC9zdmc+";
+    const pngBuf = Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+      "base64",
+    );
+    const svgBuf = Buffer.from(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"></svg>',
+      "utf8",
+    );
 
-    // Upload Logo 1
+    // Upload Logo 1 as raw binary PNG
     const rUp1 = await fetch(`${srv.baseUrl}/api/admin/quizzes/hybrid-meeting-readiness/logos/1`, {
       method: "POST",
       headers: {
-        "Content-Type": "application/json",
+        "Content-Type": "image/png",
+        "X-Logo-Filename": "steelcase.png",
+        "X-Logo-Alt": "Steelcase",
         Authorization: "Bearer secret-admin-token",
       },
-      body: JSON.stringify({ dataUrl: pngDataUrl, alt: "Steelcase" }),
+      body: pngBuf,
     });
     assert.equal(rUp1.status, 200);
+    const qAfter1 = (await rUp1.json()) as {
+      theme: { logo1?: { objectKey: string; contentType: string; fileName?: string; alt?: string } };
+    };
+    assert.ok(qAfter1.theme.logo1?.objectKey.startsWith("quizzes/hybrid-meeting-readiness/logos/logo1-"));
+    assert.equal(qAfter1.theme.logo1?.contentType, "image/png");
+    assert.equal(qAfter1.theme.logo1?.fileName, "steelcase.png");
+    // Ensure no base64 is stuffed into the quiz JSON
+    assert.ok(!JSON.stringify(qAfter1).includes("iVBORw0KGgo"));
 
-    // Upload Logo 2
+    // Upload Logo 2 as raw binary SVG
     const rUp2 = await fetch(`${srv.baseUrl}/api/admin/quizzes/hybrid-meeting-readiness/logos/2`, {
       method: "POST",
       headers: {
-        "Content-Type": "application/json",
+        "Content-Type": "image/svg+xml",
+        "X-Logo-Filename": "logitech.svg",
+        "X-Logo-Alt": "Logitech",
         Authorization: "Bearer secret-admin-token",
       },
-      body: JSON.stringify({ dataUrl: svgDataUrl, alt: "Logitech" }),
+      body: svgBuf,
     });
     assert.equal(rUp2.status, 200);
 
@@ -276,12 +355,30 @@ describe("Engine, Admin API, Retries, and CSV Export", () => {
     const rGet1 = await fetch(`${srv.baseUrl}/q/hybrid-meeting-readiness/logos/1`);
     assert.equal(rGet1.status, 200);
     assert.equal(rGet1.headers.get("content-type"), "image/png");
+    const servedPng = Buffer.from(await rGet1.arrayBuffer());
+    assert.deepEqual(servedPng, pngBuf);
 
     const rGet2 = await fetch(`${srv.baseUrl}/q/hybrid-meeting-readiness/logos/2`);
     assert.equal(rGet2.status, 200);
     assert.equal(rGet2.headers.get("content-type"), "image/svg+xml");
 
-    // Delete Logo 1 -> 404 on Logo 1, Logo 2 still 200
+    // Duplicate quiz -> logo files are copied in storage to the new quiz's namespace
+    const rDup = await fetch(`${srv.baseUrl}/api/admin/quizzes/hybrid-meeting-readiness/duplicate`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer secret-admin-token",
+      },
+      body: JSON.stringify({ slug: "hybrid-copy" }),
+    });
+    assert.equal(rDup.status, 201);
+    const dupQuiz = (await rDup.json()) as {
+      theme: { logo1?: { objectKey: string }; logo2?: { objectKey: string } };
+    };
+    assert.ok(dupQuiz.theme.logo1?.objectKey.startsWith("quizzes/hybrid-copy/logos/logo1-"));
+    assert.ok(dupQuiz.theme.logo2?.objectKey.startsWith("quizzes/hybrid-copy/logos/logo2-"));
+
+    // Delete Logo 1 on the original quiz -> original returns 404 for Logo 1, but duplicate still serves its copied Logo 1!
     const rDel1 = await fetch(`${srv.baseUrl}/api/admin/quizzes/hybrid-meeting-readiness/logos/1`, {
       method: "DELETE",
       headers: { Authorization: "Bearer secret-admin-token" },
@@ -292,6 +389,10 @@ describe("Engine, Admin API, Retries, and CSV Export", () => {
     assert.equal(rGet1After.status, 404);
     const rGet2After = await fetch(`${srv.baseUrl}/q/hybrid-meeting-readiness/logos/2`);
     assert.equal(rGet2After.status, 200);
+
+    const rDupLogo1 = await fetch(`${srv.baseUrl}/q/hybrid-copy/logos/1`);
+    assert.equal(rDupLogo1.status, 200);
+    assert.deepEqual(Buffer.from(await rDupLogo1.arrayBuffer()), pngBuf);
   });
 
   it("caps revisions at 10 and supports one-click restore + unauthorized rejection", async () => {

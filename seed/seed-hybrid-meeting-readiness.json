@@ -6,8 +6,7 @@
   "status": "draft",
   "theme": {
     "accent": "#6b4fbb",
-    "headerText": "Work Better by Steelcase",
-    "logoUrl": ""
+    "headerText": "Work Better by Steelcase"
   },
   "consent": {
     "textVersion": "consent-2026-11-v2",

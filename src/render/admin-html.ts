@@ -298,6 +298,143 @@ export function renderAdminBuilderHtml(): string {
   .banner-error { background: #fce8e6; color: #b91c1c; border: 1px solid #fecaca; }
   .banner-ok { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
   .muted { color: var(--muted); font-size: 0.82rem; }
+  .table-wrapper {
+    overflow: auto;
+    max-inline-size: 100%;
+    max-block-size: min(560px, 80vh);
+    container-type: inline-size;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: #ffffff;
+  }
+  .repo-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    font-size: 0.9rem;
+  }
+  .repo-table caption {
+    text-align: left;
+    font-weight: 700;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--border);
+    background: #f9fafb;
+  }
+  .repo-table thead {
+    position: sticky;
+    inset-block-start: 0;
+    z-index: 1;
+    background: #f3f4f6;
+  }
+  .repo-table th,
+  .repo-table td {
+    padding: 0.7rem 0.9rem;
+    border-bottom: 1px solid #e5e7eb;
+    text-align: left;
+    vertical-align: middle;
+  }
+  .repo-table tbody th {
+    position: sticky;
+    inset-inline-start: 0;
+    background: #ffffff;
+    font-weight: 600;
+  }
+  .repo-table tbody tr:hover td,
+  .repo-table tbody tr:hover th {
+    background: #f5f3ff;
+  }
+  @container (width < 600px) {
+    .repo-table, .repo-table thead, .repo-table tbody, .repo-table tr, .repo-table th, .repo-table td {
+      display: block;
+    }
+    .repo-table thead {
+      display: none;
+    }
+    .repo-table tr {
+      margin-block-end: 1rem;
+      border: 1px solid #d1d5db;
+    }
+    .repo-table tbody th {
+      position: sticky;
+      inset-block-start: 0;
+      z-index: 2;
+      background: #f3f4f6;
+    }
+    .repo-table {
+      --label-2: "Status";
+      --label-3: "Public Link";
+      --label-4: "Completions";
+      --label-5: "Actions";
+    }
+    .repo-table td:nth-child(2)::before { content: var(--label-2) ": "; font-weight: 600; }
+    .repo-table td:nth-child(3)::before { content: var(--label-3) ": "; font-weight: 600; }
+    .repo-table td:nth-child(4)::before { content: var(--label-4) ": "; font-weight: 600; }
+    .repo-table td:nth-child(5)::before { content: var(--label-5) ": "; font-weight: 600; }
+  }
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+  }
+  .kpi-card {
+    border: 1px solid #e5e7eb;
+    background: #f9fafb;
+    border-radius: 8px;
+    padding: 0.85rem 1rem;
+  }
+  .kpi-value {
+    font-size: 1.65rem;
+    font-weight: 800;
+    color: var(--accent);
+    line-height: 1.15;
+    margin: 0.2rem 0;
+  }
+  .stat-bar-track {
+    width: 100%;
+    height: 8px;
+    background: #e5e7eb;
+    border-radius: 999px;
+    overflow: hidden;
+    margin-top: 0.3rem;
+  }
+  .stat-bar-fill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 999px;
+  }
+  .stat-opt-row {
+    border: 1px solid #e5e7eb;
+    background: #ffffff;
+    border-radius: 6px;
+    padding: 0.5rem 0.65rem;
+    margin-bottom: 0.4rem;
+  }
+  .stat-opt-row.most-picked {
+    border-color: var(--accent);
+    background: #f5f3ff;
+    box-shadow: 0 0 0 1px var(--accent);
+  }
+  .most-picked-badge {
+    font-size: 0.72rem;
+    font-weight: 700;
+    background: var(--accent);
+    color: #ffffff;
+    padding: 0.1rem 0.45rem;
+    border-radius: 999px;
+    margin-left: 0.4rem;
+  }
+  .link-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    background: #f3f4f6;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    padding: 0.25rem 0.55rem;
+    font-family: monospace;
+    font-size: 0.82rem;
+  }
   dialog {
     border: 1px solid var(--border);
     border-radius: 10px;
@@ -311,7 +448,10 @@ export function renderAdminBuilderHtml(): string {
 </head>
 <body>
   <header class="topbar">
-    <h1>Quiz Designer Builder</h1>
+    <div style="display:flex; align-items:center; gap:0.75rem;">
+      <h1>Quiz Designer Portal</h1>
+      <button type="button" id="home-repo-btn" class="btn btn-sm">All Quizzes (Repository)</button>
+    </div>
     <div class="topbar-actions">
       <button type="button" id="new-quiz-btn" class="btn btn-primary">+ New Quiz</button>
       <button type="button" id="import-json-btn" class="btn">Import JSON</button>
@@ -322,32 +462,82 @@ export function renderAdminBuilderHtml(): string {
 
   <div class="layout">
     <aside class="sidebar">
-      <h2 style="font-size:0.95rem; margin-top:0;">Quizzes</h2>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.65rem;">
+        <h2 style="font-size:0.95rem; margin:0;">All Quizzes</h2>
+        <button type="button" id="sidebar-repo-btn" class="btn btn-sm">Overview</button>
+      </div>
       <div id="quiz-list"></div>
     </aside>
 
     <main class="editor-pane">
       <div id="status-banner" class="banner" hidden></div>
 
+      <div id="repository-home" class="panel">
+        <div class="subcard-head" style="margin-bottom:0.75rem;">
+          <div>
+            <h2 style="margin:0; font-size:1.2rem;">Central Quiz Repository</h2>
+            <p class="muted" style="margin:0.2rem 0 0;">Every quiz created in this portal and total completed responses collected. Click any quiz to view its full statistics breakdown and editor.</p>
+          </div>
+        </div>
+        <div tabindex="0" role="region" aria-labelledby="repo-table-caption" class="table-wrapper">
+          <table class="repo-table">
+            <caption id="repo-table-caption">All Quizzes and Response Counts</caption>
+            <thead>
+              <tr>
+                <th scope="col">Quiz Title</th>
+                <th scope="col">Status</th>
+                <th scope="col">Public Link</th>
+                <th scope="col">Completed Submissions</th>
+                <th scope="col">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="repository-table-body"></tbody>
+          </table>
+        </div>
+      </div>
+
       <div id="no-selection" class="panel" hidden>
-        <p>Select a quiz from the left or create a new one.</p>
+        <p>Select a quiz from the repository or create a new one.</p>
       </div>
 
       <div id="editor-root" hidden>
         <div class="editor-toolbar">
-          <div>
-            <strong id="editing-title">Quiz</strong>
-            <div class="muted" id="editing-slug"></div>
+          <div style="display:flex; flex-direction:column; gap:0.35rem;">
+            <div style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
+              <button type="button" id="back-to-repo-btn" class="btn btn-sm">← All Quizzes</button>
+              <strong id="editing-title" style="font-size:1.05rem;">Quiz</strong>
+              <span id="editing-status-badge" class="badge badge-draft">draft</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:0.45rem; flex-wrap:wrap;">
+              <span class="link-pill" id="editing-public-url">/q/quiz</span>
+              <button type="button" id="copy-public-url-btn" class="btn btn-sm">Copy Link</button>
+              <a id="open-live-link" class="btn btn-sm" href="#" target="_blank" rel="noopener">Open Live ↗</a>
+            </div>
           </div>
           <div style="display:flex; gap:0.4rem; flex-wrap:wrap;">
             <button type="button" id="save-btn" class="btn btn-primary">Validate &amp; Save</button>
+            <a id="export-csv-link" class="btn" href="#">Export CSV</a>
             <button type="button" id="export-json-btn" class="btn">Export JSON</button>
             <button type="button" id="export-html-btn" class="btn">Export Standalone HTML</button>
-            <a id="export-csv-link" class="btn" href="#">Export CSV</a>
-            <a id="open-live-link" class="btn" href="#" target="_blank" rel="noopener">Open Live</a>
           </div>
         </div>
 
+        <section id="quiz-stats-section" class="panel">
+          <div class="subcard-head">
+            <div>
+              <h2 style="margin:0; font-size:1.1rem;">Quiz Statistics &amp; Per-Question Breakdown</h2>
+              <div class="muted">Server-side aggregated metrics across all completed submissions (anonymous — respondent PII stays in Responses &amp; CSV).</div>
+            </div>
+            <div style="display:flex; gap:0.4rem;">
+              <button type="button" id="refresh-stats-btn" class="btn btn-sm">Refresh Stats</button>
+              <button type="button" id="toggle-stats-btn" class="btn btn-sm">Collapse Stats</button>
+              <a href="#quiz-editor-heading" class="btn btn-sm">Jump to Editor ↓</a>
+            </div>
+          </div>
+          <div id="quiz-stats-body" style="margin-top:0.75rem;"></div>
+        </section>
+
+        <h2 id="quiz-editor-heading" style="font-size:1.05rem; margin:1.25rem 0 0.6rem;">Quiz Definition Editor</h2>
         <div class="tabs" id="editor-tabs">
           <button type="button" class="tab-btn active" data-tab="meta">Meta &amp; Theme</button>
           <button type="button" class="tab-btn" data-tab="copy">Page Copy &amp; CTA</button>
@@ -423,10 +613,31 @@ export function renderAdminBuilderHtml(): string {
 
   const statusBanner = document.getElementById("status-banner");
   const quizListEl = document.getElementById("quiz-list");
+  const repoHomeEl = document.getElementById("repository-home");
+  const repoTableBody = document.getElementById("repository-table-body");
   const editorRoot = document.getElementById("editor-root");
   const noSelection = document.getElementById("no-selection");
   const tabContent = document.getElementById("tab-content");
   const previewFrame = document.getElementById("preview-frame");
+  const quizStatsBody = document.getElementById("quiz-stats-body");
+
+  async function copyTextToClipboard(text, btnEl) {
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      document.body.append(ta);
+      ta.select();
+      document.execCommand("copy");
+      ta.remove();
+    }
+    if (btnEl) {
+      const prev = btnEl.textContent;
+      btnEl.textContent = "Copied!";
+      setTimeout(() => { btnEl.textContent = prev; }, 1400);
+    }
+  }
 
   function showBanner(msg, isError = false) {
     statusBanner.hidden = false;
@@ -482,7 +693,7 @@ export function renderAdminBuilderHtml(): string {
       title: "New Assessment",
       subtitle: "Subtitle",
       status: "draft",
-      theme: { accent: "#6b4fbb", headerText: "Assessment", logoUrl: "" },
+      theme: { accent: "#6b4fbb", headerText: "Assessment" },
       consent: { textVersion: "consent-v1", text: "I agree to share my answers to receive my assessment results." },
       sources: ["public", "email", "linkedin"],
       profileQuestions: [
@@ -522,51 +733,94 @@ export function renderAdminBuilderHtml(): string {
   async function loadQuizzes(selectSlug) {
     quizzes = await api("/api/admin/quizzes");
     renderQuizList();
-    const target = selectSlug || currentSlug || quizzes[0]?.slug || null;
-    if (target && quizzes.some((q) => q.slug === target)) {
-      await selectQuiz(target);
-    } else if (quizzes.length === 0) {
-      currentSlug = null;
-      draft = null;
-      editorRoot.hidden = true;
-      noSelection.hidden = false;
+    renderRepositoryTable();
+    if (selectSlug && quizzes.some((q) => q.slug === selectSlug)) {
+      await selectQuiz(selectSlug);
+    } else if (currentSlug && quizzes.some((q) => q.slug === currentSlug)) {
+      await selectQuiz(currentSlug);
+    } else {
+      showRepositoryHome();
     }
   }
 
-  async function selectQuiz(slug) {
-    clearBanner();
-    currentSlug = slug;
-    draft = await api("/api/admin/quizzes/" + encodeURIComponent(slug));
-    revisions = await api("/api/admin/quizzes/" + encodeURIComponent(slug) + "/revisions");
-    editorRoot.hidden = false;
+  function showRepositoryHome() {
+    currentSlug = null;
+    draft = null;
+    editorRoot.hidden = true;
     noSelection.hidden = true;
+    repoHomeEl.hidden = false;
     renderQuizList();
-    renderToolbar();
-    renderTab();
-    refreshPreview();
+    renderRepositoryTable();
   }
 
-  function renderQuizList() {
-    quizListEl.innerHTML = "";
+  function renderRepositoryTable() {
+    if (!repoTableBody) return;
+    repoTableBody.innerHTML = "";
+    if (quizzes.length === 0) {
+      const tr = document.createElement("tr");
+      tr.innerHTML = "<td colspan=\\"5\\" class=\\"muted\\">No quizzes created yet. Click '+ New Quiz' to create one.</td>";
+      repoTableBody.append(tr);
+      return;
+    }
+
     quizzes.forEach((q) => {
-      const card = document.createElement("div");
-      card.className = "quiz-item" + (q.slug === currentSlug ? " active" : "");
-      card.innerHTML =
-        "<div class=\\"quiz-item-head\\">" +
-          "<div><strong></strong><div class=\\"muted\\"></div></div>" +
-          "<span class=\\"badge " + (q.status === "published" ? "badge-published" : "badge-draft") + "\\"></span>" +
-        "</div>" +
-        "<div class=\\"quiz-item-actions\\"></div>";
-      card.querySelector("strong").textContent = q.title;
-      card.querySelector(".muted").textContent = "/q/" + q.slug;
-      card.querySelector(".badge").textContent = q.status;
+      const tr = document.createElement("tr");
+      const fullUrl = window.location.origin + "/q/" + q.slug;
+      const completions = typeof q.totalCompletions === "number" ? q.totalCompletions : (q.submissionCount || 0);
+      const avgPct = typeof q.averageReadinessPct === "number" ? q.averageReadinessPct : 0;
 
-      card.addEventListener("click", (e) => {
-        if (e.target.closest("button")) return;
-        selectQuiz(q.slug);
+      const thTitle = document.createElement("th");
+      thTitle.scope = "row";
+      const titleLink = document.createElement("button");
+      titleLink.type = "button";
+      titleLink.style.cssText = "background:none;border:none;padding:0;color:var(--accent);font:inherit;font-weight:700;cursor:pointer;text-align:left;";
+      titleLink.textContent = q.title || q.slug;
+      titleLink.addEventListener("click", () => selectQuiz(q.slug));
+      const slugSub = document.createElement("div");
+      slugSub.className = "muted";
+      slugSub.textContent = "Slug: " + q.slug;
+      thTitle.append(titleLink, slugSub);
+
+      const tdStatus = document.createElement("td");
+      const badge = document.createElement("span");
+      badge.className = "badge " + (q.status === "published" ? "badge-published" : "badge-draft");
+      badge.textContent = q.status;
+      tdStatus.append(badge);
+
+      const tdLink = document.createElement("td");
+      const linkWrap = document.createElement("div");
+      linkWrap.style.cssText = "display:flex;align-items:center;gap:0.4rem;flex-wrap:wrap;";
+      const linkPill = document.createElement("a");
+      linkPill.className = "link-pill";
+      linkPill.href = "/q/" + encodeURIComponent(q.slug);
+      linkPill.target = "_blank";
+      linkPill.rel = "noopener";
+      linkPill.textContent = fullUrl;
+      const copyBtn = document.createElement("button");
+      copyBtn.type = "button";
+      copyBtn.className = "btn btn-sm";
+      copyBtn.textContent = "Copy Link";
+      copyBtn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        copyTextToClipboard(fullUrl, copyBtn);
       });
+      linkWrap.append(linkPill, copyBtn);
+      tdLink.append(linkWrap);
 
-      const actions = card.querySelector(".quiz-item-actions");
+      const tdCompletions = document.createElement("td");
+      tdCompletions.innerHTML =
+        "<strong style=\\"font-size:1.05rem;\\">" + completions + "</strong> completed" +
+        (completions > 0 ? "<div class=\\"muted\\">Avg score: " + avgPct + "%</div>" : "<div class=\\"muted\\">No submissions yet</div>");
+
+      const tdActions = document.createElement("td");
+      const actWrap = document.createElement("div");
+      actWrap.style.cssText = "display:flex;gap:0.35rem;flex-wrap:wrap;";
+
+      const openBtn = document.createElement("button");
+      openBtn.type = "button";
+      openBtn.className = "btn btn-sm btn-primary";
+      openBtn.textContent = "Stats & Editor";
+      openBtn.addEventListener("click", () => selectQuiz(q.slug));
 
       const pubBtn = document.createElement("button");
       pubBtn.type = "button";
@@ -580,7 +834,7 @@ export function renderAdminBuilderHtml(): string {
             body: JSON.stringify({ status: next }),
           });
           showBanner("Quiz '" + q.slug + "' is now " + next + ".");
-          await loadQuizzes(q.slug);
+          await loadQuizzes();
         } catch (err) { showBanner(err.message, true); }
       });
 
@@ -607,7 +861,252 @@ export function renderAdminBuilderHtml(): string {
       delBtn.textContent = "Delete";
       delBtn.addEventListener("click", () => confirmDelete(q.slug));
 
-      actions.append(pubBtn, dupBtn, delBtn);
+      actWrap.append(openBtn, pubBtn, dupBtn, delBtn);
+      tdActions.append(actWrap);
+
+      tr.append(thTitle, tdStatus, tdLink, tdCompletions, tdActions);
+      repoTableBody.append(tr);
+    });
+  }
+
+  async function selectQuiz(slug) {
+    clearBanner();
+    currentSlug = slug;
+    draft = await api("/api/admin/quizzes/" + encodeURIComponent(slug));
+    revisions = await api("/api/admin/quizzes/" + encodeURIComponent(slug) + "/revisions");
+    repoHomeEl.hidden = true;
+    editorRoot.hidden = false;
+    noSelection.hidden = true;
+    renderQuizList();
+    renderToolbar();
+    await loadAndRenderQuizStats(slug);
+    renderTab();
+    refreshPreview();
+  }
+
+  async function loadAndRenderQuizStats(slug) {
+    if (!quizStatsBody) return;
+    quizStatsBody.innerHTML = "<div class=\\"muted\\">Loading statistics...</div>";
+    try {
+      const stats = await api("/api/admin/quizzes/" + encodeURIComponent(slug) + "/stats");
+      quizStatsBody.innerHTML = "";
+
+      // Top KPI Grid
+      const kpiGrid = document.createElement("div");
+      kpiGrid.className = "stats-kpi-grid";
+
+      const kpiCompletions = document.createElement("div");
+      kpiCompletions.className = "kpi-card";
+      kpiCompletions.innerHTML =
+        "<div class=\\"kpi-label\\">Total Completed Submissions</div>" +
+        "<div class=\\"kpi-value\\">" + stats.totalCompletions + "</div>" +
+        "<div class=\\"kpi-sub\\">Aggregated server-side across all respondents</div>";
+
+      const kpiAvg = document.createElement("div");
+      kpiAvg.className = "kpi-card";
+      kpiAvg.innerHTML =
+        "<div class=\\"kpi-label\\">Average Readiness Score</div>" +
+        "<div class=\\"kpi-value\\">" + stats.averageReadinessPct + "%</div>" +
+        "<div class=\\"kpi-sub\\">Mean readiness percentage across completions</div>";
+
+      const publicUrl = window.location.origin + "/q/" + stats.slug;
+      const kpiLink = document.createElement("div");
+      kpiLink.className = "kpi-card";
+      kpiLink.innerHTML =
+        "<div class=\\"kpi-label\\">Public Assessment Link</div>" +
+        "<div style=\\"margin-top:0.35rem;word-break:break-all;font-family:monospace;font-size:0.78rem;color:var(--accent);\\"></div>" +
+        "<div style=\\"margin-top:0.45rem;display:flex;gap:0.35rem;\\"><button type=\\"button\\" class=\\"btn btn-sm kpi-copy-btn\\">Copy Link</button></div>";
+      kpiLink.querySelector("div:nth-child(2)").textContent = publicUrl;
+      const kpiCopyBtn = kpiLink.querySelector(".kpi-copy-btn");
+      kpiCopyBtn.addEventListener("click", () => copyTextToClipboard(publicUrl, kpiCopyBtn));
+
+      kpiGrid.append(kpiCompletions, kpiAvg, kpiLink);
+      quizStatsBody.append(kpiGrid);
+
+      // Band Distribution + Area Averages side by side
+      const distGrid = document.createElement("div");
+      distGrid.className = "grid-2";
+      distGrid.style.marginTop = "0.75rem";
+
+      const bandCard = document.createElement("div");
+      bandCard.className = "subcard";
+      bandCard.innerHTML = "<div class=\\"subcard-head\\"><strong>Distribution Across Bands</strong><span class=\\"muted\\">Count &amp; % of respondents</span></div>";
+      (stats.bands || []).forEach((b) => {
+        const row = document.createElement("div");
+        row.className = "stat-bar-row";
+        row.innerHTML =
+          "<div class=\\"stat-bar-meta\\">" +
+            "<span><strong>Band " + b.band + ": " + "</strong><span class=\\"band-lbl\\"></span> <span class=\\"muted\\">(" + b.min + "–" + b.max + "%)</span></span>" +
+            "<span><strong>" + b.count + "</strong> (" + b.pct + "%)</span>" +
+          "</div>" +
+          "<div class=\\"stat-bar-track\\"><div class=\\"stat-bar-fill\\" style=\\"width:" + Math.min(100, Math.max(0, b.pct)) + "%\\"></div></div>";
+        row.querySelector(".band-lbl").textContent = b.label;
+        bandCard.append(row);
+      });
+
+      const areaCard = document.createElement("div");
+      areaCard.className = "subcard";
+      areaCard.innerHTML = "<div class=\\"subcard-head\\"><strong>Average Score per Area</strong><span class=\\"muted\\">Mean % &amp; points</span></div>";
+      (stats.areas || []).forEach((a) => {
+        const row = document.createElement("div");
+        row.className = "stat-bar-row";
+        row.innerHTML =
+          "<div class=\\"stat-bar-meta\\">" +
+            "<span class=\\"area-lbl\\" style=\\"font-weight:600;\\"></span>" +
+            "<span><strong>" + a.averagePct + "%</strong> (" + a.averageScore + " / " + a.maxScore + " pts) · Gap for " + a.biggestGapCount + " (" + a.biggestGapPct + "%)</span>" +
+          "</div>" +
+          "<div class=\\"stat-bar-track\\"><div class=\\"stat-bar-fill\\" style=\\"width:" + Math.min(100, Math.max(0, a.averagePct)) + "%\\"></div></div>";
+        row.querySelector(".area-lbl").textContent = a.name;
+        areaCard.append(row);
+      });
+
+      distGrid.append(bandCard, areaCard);
+      quizStatsBody.append(distGrid);
+
+      // Per-Question Breakdown helper
+      function renderQuestionStatsGroup(titleText, questions, isScored) {
+        const groupWrap = document.createElement("div");
+        groupWrap.style.marginTop = "1rem";
+        const h3 = document.createElement("h3");
+        h3.style.cssText = "font-size:0.95rem;margin:0 0 0.5rem;";
+        h3.textContent = titleText;
+        groupWrap.append(h3);
+
+        questions.forEach((q, idx) => {
+          const card = document.createElement("div");
+          card.className = "q-stat-card";
+          const head = document.createElement("div");
+          head.style.cssText = "display:flex;justify-content:space-between;align-items:baseline;gap:0.5rem;margin-bottom:0.4rem;";
+          const titleEl = document.createElement("strong");
+          titleEl.style.fontSize = "0.88rem";
+          titleEl.textContent = (isScored ? "Q" + (idx + 1) : q.id.toUpperCase()) + " — " + q.label;
+          const metaEl = document.createElement("span");
+          metaEl.className = "muted";
+          metaEl.textContent = (isScored && q.areaName ? q.areaName + " · " : "") + q.totalResponses + " responses";
+          head.append(titleEl, metaEl);
+          card.append(head);
+
+          (q.options || []).forEach((opt) => {
+            const optRow = document.createElement("div");
+            optRow.className = "q-opt-stat" + (opt.isMostPicked ? " most-picked" : "");
+            const metaLine = document.createElement("div");
+            metaLine.className = "stat-bar-meta";
+
+            const leftSpan = document.createElement("span");
+            const optTextSpan = document.createElement("span");
+            optTextSpan.textContent = opt.text + (typeof opt.points === "number" ? " (" + opt.points + " pts)" : "");
+            leftSpan.append(optTextSpan);
+            if (opt.isMostPicked) {
+              const starBadge = document.createElement("span");
+              starBadge.className = "most-picked-badge";
+              starBadge.style.marginLeft = "0.45rem";
+              starBadge.textContent = "★ Most picked";
+              leftSpan.append(starBadge);
+            }
+
+            const rightSpan = document.createElement("span");
+            rightSpan.innerHTML = "<strong>" + opt.count + "</strong> (" + opt.pct + "%)";
+
+            metaLine.append(leftSpan, rightSpan);
+
+            const track = document.createElement("div");
+            track.className = "stat-bar-track";
+            const fill = document.createElement("div");
+            fill.className = "stat-bar-fill";
+            fill.style.width = Math.min(100, Math.max(0, opt.pct)) + "%";
+            track.append(fill);
+
+            optRow.append(metaLine, track);
+            card.append(optRow);
+          });
+
+          groupWrap.append(card);
+        });
+        return groupWrap;
+      }
+
+      if ((stats.profileQuestions || []).length > 0) {
+        quizStatsBody.append(renderQuestionStatsGroup("Per-Question Breakdown — Profile Questions", stats.profileQuestions, false));
+      }
+      if ((stats.scoredQuestions || []).length > 0) {
+        quizStatsBody.append(renderQuestionStatsGroup("Per-Question Breakdown — Scored Readiness Questions", stats.scoredQuestions, true));
+      }
+    } catch (err) {
+      quizStatsBody.innerHTML = "<div class=\\"muted\\">Could not load statistics: " + err.message + "</div>";
+    }
+  }
+
+  function renderQuizList() {
+    quizListEl.innerHTML = "";
+    quizzes.forEach((q) => {
+      const completions = typeof q.totalCompletions === "number" ? q.totalCompletions : (q.submissionCount || 0);
+      const fullUrl = window.location.origin + "/q/" + q.slug;
+      const card = document.createElement("div");
+      card.className = "quiz-item" + (q.slug === currentSlug ? " active" : "");
+      card.innerHTML =
+        "<div class=\\"quiz-item-head\\">" +
+          "<div><strong></strong><div class=\\"muted slug-line\\"></div><div class=\\"muted count-line\\"></div></div>" +
+          "<span class=\\"badge " + (q.status === "published" ? "badge-published" : "badge-draft") + "\\"></span>" +
+        "</div>" +
+        "<div class=\\"quiz-item-actions\\"></div>";
+      card.querySelector("strong").textContent = q.title;
+      card.querySelector(".slug-line").textContent = "/q/" + q.slug;
+      card.querySelector(".count-line").textContent = completions + " completed submission" + (completions === 1 ? "" : "s");
+      card.querySelector(".badge").textContent = q.status;
+
+      card.addEventListener("click", (e) => {
+        if (e.target.closest("button")) return;
+        selectQuiz(q.slug);
+      });
+
+      const actions = card.querySelector(".quiz-item-actions");
+
+      const copyBtn = document.createElement("button");
+      copyBtn.type = "button";
+      copyBtn.className = "btn btn-sm";
+      copyBtn.textContent = "Copy Link";
+      copyBtn.addEventListener("click", () => copyTextToClipboard(fullUrl, copyBtn));
+
+      const pubBtn = document.createElement("button");
+      pubBtn.type = "button";
+      pubBtn.className = "btn btn-sm";
+      pubBtn.textContent = q.status === "published" ? "Unpublish" : "Publish";
+      pubBtn.addEventListener("click", async () => {
+        try {
+          const next = q.status === "published" ? "draft" : "published";
+          await api("/api/admin/quizzes/" + encodeURIComponent(q.slug) + "/status", {
+            method: "POST",
+            body: JSON.stringify({ status: next }),
+          });
+          showBanner("Quiz '" + q.slug + "' is now " + next + ".");
+          await loadQuizzes(currentSlug);
+        } catch (err) { showBanner(err.message, true); }
+      });
+
+      const dupBtn = document.createElement("button");
+      dupBtn.type = "button";
+      dupBtn.className = "btn btn-sm";
+      dupBtn.textContent = "Duplicate";
+      dupBtn.addEventListener("click", async () => {
+        const newSlug = window.prompt("New slug for duplicate:", q.slug + "-copy");
+        if (!newSlug) return;
+        try {
+          const created = await api("/api/admin/quizzes/" + encodeURIComponent(q.slug) + "/duplicate", {
+            method: "POST",
+            body: JSON.stringify({ slug: newSlug.trim().toLowerCase() }),
+          });
+          showBanner("Duplicated to '" + created.slug + "'.");
+          await loadQuizzes(created.slug);
+        } catch (err) { showBanner(err.message, true); }
+      });
+
+      const delBtn = document.createElement("button");
+      delBtn.type = "button";
+      delBtn.className = "btn btn-sm";
+      delBtn.textContent = "Delete";
+      delBtn.addEventListener("click", () => confirmDelete(q.slug));
+
+      actions.append(copyBtn, pubBtn, dupBtn, delBtn);
       quizListEl.append(card);
     });
   }
@@ -635,7 +1134,15 @@ export function renderAdminBuilderHtml(): string {
   function renderToolbar() {
     if (!draft) return;
     document.getElementById("editing-title").textContent = draft.title || draft.slug;
-    document.getElementById("editing-slug").textContent = "/q/" + draft.slug + " (" + draft.status + ")";
+    const statusBadge = document.getElementById("editing-status-badge");
+    if (statusBadge) {
+      statusBadge.className = "badge " + (draft.status === "published" ? "badge-published" : "badge-draft");
+      statusBadge.textContent = draft.status;
+    }
+    const pubUrlEl = document.getElementById("editing-public-url");
+    if (pubUrlEl) {
+      pubUrlEl.textContent = window.location.origin + "/q/" + draft.slug;
+    }
     document.getElementById("export-csv-link").href = "/api/admin/quizzes/" + encodeURIComponent(draft.slug) + "/export";
     const liveLink = document.getElementById("open-live-link");
     liveLink.href = "/q/" + encodeURIComponent(draft.slug);
@@ -716,12 +1223,6 @@ export function renderAdminBuilderHtml(): string {
       headerIn.value = draft.theme.headerText || "";
       headerIn.oninput = () => { draft.theme.headerText = headerIn.value; schedulePreview(); };
 
-      const logoIn = document.createElement("input");
-      logoIn.type = "url";
-      logoIn.value = draft.theme.logoUrl || "";
-      logoIn.placeholder = "https://... (optional fallback URL)";
-      logoIn.oninput = () => { draft.theme.logoUrl = logoIn.value; schedulePreview(); };
-
       const sourcesIn = document.createElement("input");
       sourcesIn.type = "text";
       sourcesIn.value = (draft.sources || []).join(", ");
@@ -738,7 +1239,7 @@ export function renderAdminBuilderHtml(): string {
       const logosNote = document.createElement("p");
       logosNote.className = "muted";
       logosNote.style.marginTop = "0";
-      logosNote.textContent = "Upload PNG, JPG, or SVG files for Logo 1 (e.g. Steelcase) and Logo 2 (e.g. Logitech). Both render side by side when uploaded; a single logo renders alone; if neither is uploaded, the header and welcome screen fall back to the text lockup.";
+      logosNote.textContent = "Choose PNG, JPG, or SVG files from your computer for Logo 1 (e.g. Steelcase) and Logo 2 (e.g. Logitech). Files are stored in Cloud Storage per quiz/revision (and copied on quiz duplication). Both render side by side when uploaded; a single logo renders alone; if neither is set, the quiz falls back to the text lockup.";
       logosBox.append(logosHead, logosNote);
 
       const logosGrid = document.createElement("div");
@@ -760,6 +1261,8 @@ export function renderAdminBuilderHtml(): string {
         const prevWrap = document.createElement("div");
         prevWrap.style.minHeight = "64px";
         prevWrap.style.display = "flex";
+        prevWrap.style.flexDirection = "column";
+        prevWrap.style.gap = "0.35rem";
         prevWrap.style.alignItems = "center";
         prevWrap.style.justifyContent = "center";
         prevWrap.style.background = "#f3f4f6";
@@ -768,18 +1271,22 @@ export function renderAdminBuilderHtml(): string {
         prevWrap.style.padding = "0.5rem";
         prevWrap.style.marginBottom = "0.65rem";
 
-        if (slotData && slotData.dataUrl) {
+        if (slotData && slotData.objectKey) {
           const img = document.createElement("img");
-          img.src = slotData.dataUrl;
+          img.src = "/q/" + encodeURIComponent(draft.slug) + "/logos/" + slotNum + "?key=" + encodeURIComponent(slotData.objectKey);
           img.alt = slotData.alt || ("Logo " + slotNum);
           img.style.maxHeight = "44px";
           img.style.maxWidth = "180px";
           img.style.objectFit = "contain";
-          prevWrap.append(img);
+          const fileMeta = document.createElement("span");
+          fileMeta.className = "muted";
+          fileMeta.style.fontSize = "0.75rem";
+          fileMeta.textContent = slotData.fileName || slotData.objectKey.split("/").pop();
+          prevWrap.append(img, fileMeta);
         } else {
           const emptyTxt = document.createElement("span");
           emptyTxt.className = "muted";
-          emptyTxt.textContent = "No logo uploaded";
+          emptyTxt.textContent = "No logo file uploaded";
           prevWrap.append(emptyTxt);
         }
         card.append(prevWrap);
@@ -801,31 +1308,40 @@ export function renderAdminBuilderHtml(): string {
         fileIn.accept = ".png,.jpg,.jpeg,.svg,image/png,image/jpeg,image/svg+xml";
         fileIn.style.fontSize = "0.82rem";
         fileIn.style.marginBottom = "0.5rem";
-        fileIn.onchange = () => {
+        fileIn.onchange = async () => {
           const file = fileIn.files?.[0];
           if (!file) return;
-          const reader = new FileReader();
-          reader.onload = async () => {
-            const dataUrl = String(reader.result || "");
-            const alt = altIn.value.trim() || (slotNum === 1 ? "Logo 1" : "Logo 2");
-            try {
-              const saved = await api("/api/admin/quizzes/" + encodeURIComponent(currentSlug) + "/logos/" + slotNum, {
-                method: "POST",
-                body: JSON.stringify({ dataUrl, alt }),
-              });
-              draft.theme = saved.theme;
-              showBanner("Uploaded Logo " + slotNum + ".");
-              renderTab();
-              schedulePreview();
-            } catch (err) {
-              showBanner("Logo upload failed: " + err.message, true);
+          const alt = altIn.value.trim() || (slotNum === 1 ? "Steelcase" : "Logitech");
+          try {
+            const res = await fetch("/api/admin/quizzes/" + encodeURIComponent(currentSlug) + "/logos/" + slotNum, {
+              method: "POST",
+              headers: {
+                "Content-Type": file.type || "application/octet-stream",
+                "X-Logo-Filename": encodeURIComponent(file.name),
+                "X-Logo-Alt": encodeURIComponent(alt),
+              },
+              body: file,
+            });
+            if (res.status === 401) {
+              window.location.href = "/admin/login";
+              return;
             }
-          };
-          reader.readAsDataURL(file);
+            const saved = await res.json().catch(() => ({}));
+            if (!res.ok) {
+              throw new Error(saved.error || "Logo upload failed");
+            }
+            draft.theme = saved.theme;
+            revisions = await api("/api/admin/quizzes/" + encodeURIComponent(currentSlug) + "/revisions");
+            showBanner("Uploaded Logo " + slotNum + " (" + file.name + ") to Cloud Storage.");
+            renderTab();
+            schedulePreview();
+          } catch (err) {
+            showBanner("Logo upload failed: " + err.message, true);
+          }
         };
-        card.append(makeField("Upload / Replace (PNG, JPG, SVG)", fileIn));
+        card.append(makeField("Choose Image File (PNG, JPG, SVG)", fileIn));
 
-        if (slotData && slotData.dataUrl) {
+        if (slotData && slotData.objectKey) {
           const rmBtn = document.createElement("button");
           rmBtn.type = "button";
           rmBtn.className = "btn btn-sm btn-danger";
@@ -836,6 +1352,7 @@ export function renderAdminBuilderHtml(): string {
                 method: "DELETE",
               });
               draft.theme = saved.theme;
+              revisions = await api("/api/admin/quizzes/" + encodeURIComponent(currentSlug) + "/revisions");
               showBanner("Removed Logo " + slotNum + ".");
               renderTab();
               schedulePreview();
@@ -859,7 +1376,6 @@ export function renderAdminBuilderHtml(): string {
         makeField("Theme Accent Color", colorWrap),
         makeField("Theme Header Text (Fallback lockup)", headerIn),
         logosBox,
-        makeField("Legacy Logo URL (optional fallback)", logoIn),
         makeField("Allowed Tracking Sources (comma-separated)", sourcesIn),
       );
       tabContent.append(p);
@@ -1622,6 +2138,28 @@ export function renderAdminBuilderHtml(): string {
   });
 
   document.getElementById("refresh-preview-btn").addEventListener("click", refreshPreview);
+
+  document.getElementById("home-repo-btn")?.addEventListener("click", () => {
+    loadQuizzes().then(() => showRepositoryHome()).catch((err) => showBanner(err.message, true));
+  });
+  document.getElementById("sidebar-repo-btn")?.addEventListener("click", () => {
+    loadQuizzes().then(() => showRepositoryHome()).catch((err) => showBanner(err.message, true));
+  });
+  document.getElementById("back-to-repo-btn")?.addEventListener("click", () => {
+    loadQuizzes().then(() => showRepositoryHome()).catch((err) => showBanner(err.message, true));
+  });
+  document.getElementById("copy-public-url-btn")?.addEventListener("click", (e) => {
+    if (!draft) return;
+    copyTextToClipboard(window.location.origin + "/q/" + draft.slug, e.currentTarget);
+  });
+  document.getElementById("refresh-stats-btn")?.addEventListener("click", () => {
+    if (currentSlug) loadAndRenderQuizStats(currentSlug);
+  });
+  document.getElementById("toggle-stats-btn")?.addEventListener("click", (e) => {
+    if (!quizStatsBody) return;
+    quizStatsBody.hidden = !quizStatsBody.hidden;
+    e.currentTarget.textContent = quizStatsBody.hidden ? "Expand Stats" : "Collapse Stats";
+  });
 
   document.getElementById("new-quiz-btn").addEventListener("click", async () => {
     const slug = window.prompt("Enter URL-safe slug for new quiz (e.g. workplace-pulse):", "new-quiz-" + Date.now().toString().slice(-4));

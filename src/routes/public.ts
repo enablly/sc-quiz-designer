@@ -1,9 +1,11 @@
 import { Router } from "express";
 import type { AppConfig } from "../config.js";
 import { priorityFlag, scoreAnswers, validateProfile } from "../domain/scoring.js";
+import { LOGO_OBJECT_KEY_RE } from "../domain/validator.js";
 import { renderQuizHtml } from "../render/quiz-html.js";
 import { syncSubmission } from "../services/sync-pipeline.js";
 import { verifyTurnstile } from "../services/turnstile.js";
+import type { LogoStore } from "../store/logo-store.js";
 import { submissionDocId, type QuizStore } from "../store/store.js";
 import type { QuizDefinition, ScoreResult, SubmissionDocument } from "../types.js";
 import { parseCookies } from "./auth.js";
@@ -47,6 +49,7 @@ export function buildPublicResultsPayload(
 
 export interface PublicRouterDeps {
   store: QuizStore;
+  logoStore: LogoStore;
   config: AppConfig;
   fetchFn?: typeof fetch;
   onAsyncSync?: (p: Promise<unknown>) => void;
@@ -80,34 +83,48 @@ export function createPublicRouter(deps: PublicRouterDeps): Router {
       res.status(404).end();
       return;
     }
-    const quiz = await deps.store.getQuiz(slug);
-    if (!quiz) {
-      res.status(404).end();
-      return;
-    }
-    const logoSlot = slot === "1" ? quiz.theme?.logo1 : quiz.theme?.logo2;
-    if (logoSlot?.dataUrl) {
-      const m = logoSlot.dataUrl.match(
-        /^data:(image\/(?:png|jpeg|svg\+xml));base64,([A-Za-z0-9+/=\s]+)$/i,
-      );
-      if (m) {
-        const mime = m[1]!.toLowerCase();
-        const buf = Buffer.from(m[2]!.replace(/\s+/g, ""), "base64");
-        res.setHeader("Content-Type", mime);
-        res.setHeader(
-          "Content-Security-Policy",
-          "default-src 'none'; style-src 'unsafe-inline'",
-        );
-        res.setHeader("Cache-Control", "public, max-age=3600");
-        res.send(buf);
+    const queryKey = typeof req.query.key === "string" ? req.query.key.trim() : "";
+    let objectKey = "";
+    if (
+      queryKey &&
+      LOGO_OBJECT_KEY_RE.test(queryKey) &&
+      queryKey.startsWith(`quizzes/${slug}/logos/`)
+    ) {
+      objectKey = queryKey;
+    } else {
+      const quiz = await deps.store.getQuiz(slug);
+      if (!quiz) {
+        res.status(404).end();
         return;
       }
+      const logoSlot = slot === "1" ? quiz.theme?.logo1 : quiz.theme?.logo2;
+      if (!logoSlot?.objectKey) {
+        res.status(404).end();
+        return;
+      }
+      objectKey = logoSlot.objectKey;
     }
-    if (logoSlot?.url && /^https?:\/\//i.test(logoSlot.url)) {
-      res.redirect(logoSlot.url);
-      return;
+
+    try {
+      const stored = await deps.logoStore.getLogo(objectKey);
+      if (!stored) {
+        res.status(404).end();
+        return;
+      }
+      res.setHeader("Content-Type", stored.contentType);
+      res.setHeader(
+        "Content-Security-Policy",
+        "default-src 'none'; style-src 'unsafe-inline'",
+      );
+      res.setHeader(
+        "Cache-Control",
+        queryKey ? "public, max-age=31536000, immutable" : "public, max-age=300",
+      );
+      res.send(stored.buffer);
+    } catch (err) {
+      console.error(`Failed to serve logo ${objectKey}:`, err);
+      res.status(500).end();
     }
-    res.status(404).end();
   });
 
   router.get("/q/:slug", async (req, res) => {

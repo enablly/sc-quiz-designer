@@ -2,10 +2,12 @@ import express from "express";
 import type { AppConfig } from "./config.js";
 import { createAdminRouter } from "./routes/admin.js";
 import { createPublicRouter } from "./routes/public.js";
+import { MemoryLogoStore, type LogoStore } from "./store/logo-store.js";
 import type { QuizStore } from "./store/store.js";
 
 export interface AppDeps {
   store: QuizStore;
+  logoStore?: LogoStore;
   config: AppConfig;
   fetchFn?: typeof fetch;
   onAsyncSync?: (p: Promise<unknown>) => void;
@@ -13,6 +15,7 @@ export interface AppDeps {
 
 export function createApp(deps: AppDeps): express.Express {
   const app = express();
+  const logoStore = deps.logoStore ?? new MemoryLogoStore();
   app.set("trust proxy", true);
   app.disable("x-powered-by");
 
@@ -34,6 +37,7 @@ export function createApp(deps: AppDeps): express.Express {
   app.use(
     createPublicRouter({
       store: deps.store,
+      logoStore,
       config: deps.config,
       fetchFn: deps.fetchFn,
       onAsyncSync: deps.onAsyncSync,
@@ -43,6 +47,7 @@ export function createApp(deps: AppDeps): express.Express {
   app.use(
     createAdminRouter({
       store: deps.store,
+      logoStore,
       config: deps.config,
       fetchFn: deps.fetchFn,
     }),

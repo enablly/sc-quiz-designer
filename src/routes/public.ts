@@ -74,6 +74,42 @@ export function createPublicRouter(deps: PublicRouterDeps): Router {
     }</body></html>`);
   });
 
+  router.get("/q/:slug/logos/:slot", async (req, res) => {
+    const { slug, slot } = req.params;
+    if (slot !== "1" && slot !== "2") {
+      res.status(404).end();
+      return;
+    }
+    const quiz = await deps.store.getQuiz(slug);
+    if (!quiz) {
+      res.status(404).end();
+      return;
+    }
+    const logoSlot = slot === "1" ? quiz.theme?.logo1 : quiz.theme?.logo2;
+    if (logoSlot?.dataUrl) {
+      const m = logoSlot.dataUrl.match(
+        /^data:(image\/(?:png|jpeg|svg\+xml));base64,([A-Za-z0-9+/=\s]+)$/i,
+      );
+      if (m) {
+        const mime = m[1]!.toLowerCase();
+        const buf = Buffer.from(m[2]!.replace(/\s+/g, ""), "base64");
+        res.setHeader("Content-Type", mime);
+        res.setHeader(
+          "Content-Security-Policy",
+          "default-src 'none'; style-src 'unsafe-inline'",
+        );
+        res.setHeader("Cache-Control", "public, max-age=3600");
+        res.send(buf);
+        return;
+      }
+    }
+    if (logoSlot?.url && /^https?:\/\//i.test(logoSlot.url)) {
+      res.redirect(logoSlot.url);
+      return;
+    }
+    res.status(404).end();
+  });
+
   router.get("/q/:slug", async (req, res) => {
     const quiz = await deps.store.getQuiz(req.params.slug);
     if (!quiz || quiz.status !== "published") {
@@ -155,6 +191,7 @@ export function createPublicRouter(deps: PublicRouterDeps): Router {
 
     // 4. Validate profile and re-score answers from texts
     const profile = (body.profile ?? {}) as Record<string, string>;
+    const rawProfileOther = (body.profileOther ?? {}) as Record<string, unknown>;
     const answers = (body.answers ?? {}) as Record<string, string>;
 
     let scoreResult: ScoreResult;
@@ -164,6 +201,16 @@ export function createPublicRouter(deps: PublicRouterDeps): Router {
     } catch (err) {
       res.status(400).json({ error: (err as Error).message });
       return;
+    }
+
+    const profileOther: Record<string, string> = {};
+    for (const pq of quiz.profileQuestions) {
+      const chosen = profile[pq.id];
+      const opt = pq.options.find((o) => o.code === chosen || o.text === chosen);
+      const spec = String(rawProfileOther[pq.id] ?? "").trim().slice(0, 300);
+      if (spec && (opt?.allowFreeText || rawProfileOther[pq.id] !== undefined)) {
+        profileOther[pq.id] = spec;
+      }
     }
 
     // 5. Idempotency + Store-first
@@ -200,6 +247,7 @@ export function createPublicRouter(deps: PublicRouterDeps): Router {
       company,
       source,
       profile,
+      ...(Object.keys(profileOther).length > 0 ? { profileOther } : {}),
       answers,
       result: scoreResult,
       priorityFollowup,

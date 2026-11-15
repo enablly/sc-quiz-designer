@@ -14,7 +14,7 @@ const seed = loadSeedDefinition();
 function makeScore() {
   const answers: Record<string, string> = {};
   for (const q of seed.scoredQuestions) {
-    const pts = q.area === "spaces" ? 0 : 2;
+    const pts = q.area === "being_seen_and_heard" ? 0 : 2;
     answers[q.id] = q.options.find((o) => o.points === pts)!.text;
   }
   return scoreAnswers(seed, answers);
@@ -32,7 +32,7 @@ describe("Acceptance Test 3: Gemini payload, validator, and fallback", () => {
     assert.ok(!json.includes("email"));
     assert.equal(payload.readiness_pct, res.readinessPct);
     assert.equal(payload.lowest_questions.length, 3);
-    assert.equal(payload.areas.length, 5);
+    assert.equal(payload.areas.length, 3);
   });
 
   it("rejects wrong word count, multiline, URLs, and foreign numbers", () => {
@@ -72,7 +72,7 @@ describe("Acceptance Test 3: Gemini payload, validator, and fallback", () => {
     assert.equal(fb1.status, "fallback");
     assert.ok(fb1.text.includes(`${res.readinessPct}%`));
     assert.ok(fb1.text.includes(res.band.label));
-    assert.ok(fb1.text.includes("Spaces"));
+    assert.ok(fb1.text.includes("Being seen and heard"));
 
     // Invalid Gemini output -> fallback
     const badFetch: typeof fetch = async () =>
@@ -93,9 +93,9 @@ describe("Acceptance Test 3: Gemini payload, validator, and fallback", () => {
 
     // Valid Gemini output -> ok
     const validText =
-      `Your overall readiness score sits at ${res.readinessPct}% today, showing solid momentum across several areas while pointing clearly toward spaces as your primary focus. ` +
+      `Your overall readiness score sits at ${res.readinessPct}% today, showing solid momentum across several areas while pointing clearly toward being seen and heard as your primary focus. ` +
       `When rooms are shaped around the camera and display, remote colleagues feel present in the conversation rather than observing from the edges. ` +
-      `Building on your stronger areas at ${res.areaPcts.technology}% will help your teams turn small room layout improvements into consistent, inclusive hybrid meetings every day.`;
+      `Building on your stronger areas at ${res.areaPcts.working_together}% will help your teams turn small room layout improvements into consistent, inclusive hybrid meetings every day.`;
     const goodFetch: typeof fetch = async () =>
       new Response(
         JSON.stringify({
@@ -128,7 +128,7 @@ describe("Acceptance Test 3: Gemini payload, validator, and fallback", () => {
     const text = renderFallbackParagraph(custom, res);
     assert.ok(text.includes(`Score=${res.readinessPct}%`));
     assert.ok(text.includes(`Band=${res.band.label}`));
-    assert.ok(text.includes("Gap=Spaces(0%)"));
+    assert.ok(text.includes("Gap=Being seen and heard(0%)"));
     assert.ok(text.includes("Best="));
   });
 });

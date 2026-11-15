@@ -33,13 +33,25 @@ export function buildSubmissionsCsv(
   const areaNameByKey = new Map(quiz.areas.map((a) => [a.key, a.name]));
   const sorted = sortSubmissionsForExport(submissions);
 
+  const profileColumns = quiz.profileQuestions.flatMap((pq) => {
+    const hasFreeText =
+      pq.options.some((o) => o.allowFreeText) ||
+      sorted.some((s) => Boolean(s.profileOther?.[pq.id]));
+    return hasFreeText
+      ? [
+          { id: pq.id, kind: "choice" as const, header: `profile_${pq.id}` },
+          { id: pq.id, kind: "other" as const, header: `profile_${pq.id}_other` },
+        ]
+      : [{ id: pq.id, kind: "choice" as const, header: `profile_${pq.id}` }];
+  });
+
   const headers: string[] = [
     "email",
     "first_name",
     "last_name",
     "company",
     "source",
-    ...quiz.profileQuestions.map((pq) => `profile_${pq.id}`),
+    ...profileColumns.map((c) => c.header),
     ...quiz.scoredQuestions.map((sq) => `${sq.id}_points`),
     ...quiz.areas.flatMap((a) => [`area_${a.key}_score`, `area_${a.key}_pct`]),
     "total_points",
@@ -67,8 +79,10 @@ export function buildSubmissionsCsv(
       sub.lastName,
       sub.company,
       sub.source,
-      ...quiz.profileQuestions.map((pq) =>
-        resolveProfileText(quiz, pq.id, sub.profile[pq.id] ?? ""),
+      ...profileColumns.map((c) =>
+        c.kind === "other"
+          ? (sub.profileOther?.[c.id] ?? "")
+          : resolveProfileText(quiz, c.id, sub.profile[c.id] ?? ""),
       ),
       ...quiz.scoredQuestions.map((sq) => sub.result.pointsByQuestion[sq.id] ?? ""),
       ...quiz.areas.flatMap((a) => [

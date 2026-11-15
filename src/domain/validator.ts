@@ -1,7 +1,14 @@
-import type { QuizDefinition, ScoringBand } from "../types.js";
+import type {
+  PrivacyPolicyLink,
+  QuizDefinition,
+  QuizLogoSlot,
+  QuizPageCopy,
+  ScoringBand,
+} from "../types.js";
 
 const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/;
+export const DATA_IMAGE_RE = /^data:image\/(png|jpeg|svg\+xml);base64,[A-Za-z0-9+/=\s]+$/i;
 
 export interface ValidationResult {
   valid: boolean;
@@ -25,6 +32,169 @@ function cleanStr(val: unknown): string {
   return repairMojibake(String(val ?? "").trim());
 }
 
+export const DEFAULT_PRIVACY_LINKS: PrivacyPolicyLink[] = [
+  {
+    label: "Steelcase privacy policy",
+    url: "https://www.steelcase.com/privacy-policy/",
+  },
+  {
+    label: "Logitech privacy policy",
+    url: "https://www.logitech.com/en-us/legal/privacy-policy.html",
+  },
+];
+
+export const DEFAULT_PAGE_COPY: QuizPageCopy = {
+  welcomeHeadline: "How Hybrid-Ready Are Your Meetings?",
+  welcomeSubline: "Steelcase and Logitech: Hybrid Meeting Readiness Assessment",
+  welcomeMetaLine:
+    "~2 minutes \u00b7 9 questions \u00b7 See how ready your meetings are for hybrid work with this assessment.",
+  areasCoveredHeading: "Areas covered",
+  consentCheckboxLabel: "I have read and agree to the terms above.",
+  startButton: "Start assessment",
+  consentError: "Please confirm your consent before starting the assessment.",
+
+  profileAreaName: "About your organization",
+  progressAreaIntroFormat: "{areaName} \u00b7 Area {areaIndex} of {totalAreas}",
+  progressQuestionFormat:
+    "{areaName} \u00b7 Question {indexInArea} of {areaTotal} in this area",
+  progressOverallFormat: "{overallIndex} of {totalQuestions} overall",
+  sectionIntroKickerFormat: "Area {areaIndex} of {totalAreas}",
+  sectionIntroHeadingFormat: "Area {areaIndex} of {totalAreas} \u2014 {areaName}",
+  continueButton: "Continue",
+  backButton: "Back",
+  nextButton: "Next",
+
+  keyboardHint: "Tip: Press A\u2013D to select, or Enter to continue.",
+  questionRequiredError: "Please select an option to continue.",
+  otherSpecifyLabel: "Please specify",
+  otherSpecifyPlaceholder: "Type your answer...",
+
+  progressFinalStepLabel: "Final step \u00b7 Your details",
+  progressFinalOverallFormat: "{totalQuestions} of {totalQuestions} complete",
+  identityHeading: "Where should we send your report?",
+  identitySubtitle: "Enter your details to unlock your readiness breakdown.",
+  firstNameLabel: "First name",
+  firstNameError: "Please enter your first name.",
+  lastNameLabel: "Last name",
+  emailLabel: "Work email",
+  emailHint: "Format: name@company.com",
+  emailError: "Enter a valid email address like name@company.com.",
+  freeEmailWarning:
+    "Heads up: it looks like a personal email address. Using your work email ensures your team report routes properly, though you can still submit with this address.",
+  companyLabel: "Company",
+  companyError: "Please enter your company name.",
+  prefillCompletingAsFormat: "Completing as {who}",
+  prefillSubmittingForFormat: "Submitting for {name} ({email}, {company})",
+  notYouButton: "Not you?",
+  submitButton: "See my results",
+  submittingButton: "Calculating...",
+  validationSummaryError: "Please check the highlighted fields.",
+  turnstileRequiredError:
+    "Please complete the verification check before submitting.",
+  submitFailedError: "Could not submit your answers. Please try again.",
+  networkError: "Network error while submitting. Please try again.",
+
+  resultsHeading: "Your readiness results",
+  scoresByAreaHeading: "Scores by area",
+  biggestGapHeading: "Biggest gap",
+  biggestGapHeadingBand4: "Where to keep your edge",
+  gapCardBadge: "Priority focus area",
+  gapCardBadgeBand4: "Strength to maintain",
+  ctaHeading: "Want to talk it through?",
+  ctaBody:
+    "Book a short call with a Steelcase workplace specialist about your biggest gap.",
+  ctaButton: "Speak to us",
+  ctaUrl: "#",
+  retakeButton: "Retake assessment",
+};
+
+export function resolvePageCopy(quiz: Partial<QuizDefinition>): QuizPageCopy {
+  const raw = quiz.copy ?? {};
+  const pick = (key: keyof QuizPageCopy, fallback?: string): string => {
+    const val = raw[key];
+    if (typeof val === "string" && val.trim() !== "") {
+      return cleanStr(val);
+    }
+    return fallback !== undefined ? fallback : DEFAULT_PAGE_COPY[key];
+  };
+
+  return {
+    welcomeHeadline: pick("welcomeHeadline", DEFAULT_PAGE_COPY.welcomeHeadline),
+    welcomeSubline: pick(
+      "welcomeSubline",
+      cleanStr(quiz.subtitle) || DEFAULT_PAGE_COPY.welcomeSubline,
+    ),
+    welcomeMetaLine: pick("welcomeMetaLine", DEFAULT_PAGE_COPY.welcomeMetaLine),
+    areasCoveredHeading: pick("areasCoveredHeading"),
+    consentCheckboxLabel: pick("consentCheckboxLabel"),
+    startButton: pick("startButton"),
+    consentError: pick("consentError"),
+
+    profileAreaName: pick("profileAreaName"),
+    progressAreaIntroFormat: pick("progressAreaIntroFormat"),
+    progressQuestionFormat: pick("progressQuestionFormat"),
+    progressOverallFormat: pick("progressOverallFormat"),
+    sectionIntroKickerFormat: pick("sectionIntroKickerFormat"),
+    sectionIntroHeadingFormat: pick("sectionIntroHeadingFormat"),
+    continueButton: pick("continueButton"),
+    backButton: pick("backButton"),
+    nextButton: pick("nextButton"),
+
+    keyboardHint: pick("keyboardHint"),
+    questionRequiredError: pick("questionRequiredError"),
+    otherSpecifyLabel: pick("otherSpecifyLabel"),
+    otherSpecifyPlaceholder: pick("otherSpecifyPlaceholder"),
+
+    progressFinalStepLabel: pick("progressFinalStepLabel"),
+    progressFinalOverallFormat: pick("progressFinalOverallFormat"),
+    identityHeading: pick("identityHeading"),
+    identitySubtitle: pick("identitySubtitle"),
+    firstNameLabel: pick("firstNameLabel"),
+    firstNameError: pick("firstNameError"),
+    lastNameLabel: pick("lastNameLabel"),
+    emailLabel: pick("emailLabel"),
+    emailHint: pick("emailHint"),
+    emailError: pick("emailError"),
+    freeEmailWarning: pick("freeEmailWarning"),
+    companyLabel: pick("companyLabel"),
+    companyError: pick("companyError"),
+    prefillCompletingAsFormat: pick("prefillCompletingAsFormat"),
+    prefillSubmittingForFormat: pick("prefillSubmittingForFormat"),
+    notYouButton: pick("notYouButton"),
+    submitButton: pick("submitButton"),
+    submittingButton: pick("submittingButton"),
+    validationSummaryError: pick("validationSummaryError"),
+    turnstileRequiredError: pick("turnstileRequiredError"),
+    submitFailedError: pick("submitFailedError"),
+    networkError: pick("networkError"),
+
+    resultsHeading: pick("resultsHeading"),
+    scoresByAreaHeading: pick("scoresByAreaHeading"),
+    biggestGapHeading: pick("biggestGapHeading"),
+    biggestGapHeadingBand4: pick("biggestGapHeadingBand4"),
+    gapCardBadge: pick("gapCardBadge"),
+    gapCardBadgeBand4: pick("gapCardBadgeBand4"),
+    ctaHeading: pick("ctaHeading"),
+    ctaBody: pick("ctaBody"),
+    ctaButton: pick("ctaButton"),
+    ctaUrl: pick("ctaUrl"),
+    retakeButton: pick("retakeButton"),
+  };
+}
+
+function normalizeLogoSlot(raw?: QuizLogoSlot): QuizLogoSlot | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const url = cleanStr(raw.url);
+  const dataUrl = String(raw.dataUrl ?? "").trim().replace(/\s+/g, "");
+  const alt = cleanStr(raw.alt);
+  if (!url && !dataUrl && !alt) return undefined;
+  return {
+    ...(url ? { url } : {}),
+    ...(dataUrl ? { dataUrl } : {}),
+    ...(alt ? { alt } : {}),
+  };
+}
+
 function normalizeBand(raw: ScoringBand): ScoringBand {
   const min = typeof raw.min === "number" ? raw.min : Number(raw.minPct);
   const max = typeof raw.max === "number" ? raw.max : Number(raw.maxPct);
@@ -45,15 +215,30 @@ export function normalizeQuizDefinition(input: QuizDefinition): QuizDefinition {
   clone.subtitle = cleanStr(clone.subtitle);
   clone.status = clone.status === "published" ? "published" : "draft";
   clone.schemaVersion = Number(clone.schemaVersion || 1);
+  const logo1 = normalizeLogoSlot(clone.theme?.logo1);
+  const logo2 = normalizeLogoSlot(clone.theme?.logo2);
   clone.theme = {
     accent: cleanStr(clone.theme?.accent || "#6b4fbb"),
     headerText: cleanStr(clone.theme?.headerText),
     logoUrl: clone.theme?.logoUrl ? cleanStr(clone.theme.logoUrl) : "",
+    ...(logo1 ? { logo1 } : {}),
+    ...(logo2 ? { logo2 } : {}),
   };
+  const rawLinks = clone.consent?.privacyLinks;
+  const privacyLinks: PrivacyPolicyLink[] = Array.isArray(rawLinks)
+    ? rawLinks
+        .map((l) => ({
+          label: cleanStr(l?.label),
+          url: cleanStr(l?.url),
+        }))
+        .filter((l) => l.label && l.url)
+    : structuredClone(DEFAULT_PRIVACY_LINKS);
   clone.consent = {
     textVersion: cleanStr(clone.consent?.textVersion),
     text: cleanStr(clone.consent?.text),
+    privacyLinks,
   };
+  clone.copy = resolvePageCopy(clone);
   clone.sources = Array.isArray(clone.sources)
     ? clone.sources.map((s) => cleanStr(s)).filter(Boolean)
     : [];
@@ -65,6 +250,7 @@ export function normalizeQuizDefinition(input: QuizDefinition): QuizDefinition {
           ? pq.options.map((o) => ({
               code: cleanStr(o.code),
               text: cleanStr(o.text),
+              ...(o.allowFreeText ? { allowFreeText: true } : {}),
             }))
           : [],
       }))
@@ -163,6 +349,18 @@ export function validateQuizDefinition(raw: unknown): ValidationResult {
   }
   if (!HEX_COLOR_RE.test(def.theme.accent)) {
     errors.push(`Theme accent '${def.theme.accent}' must be a 6-digit hex color like #6b4fbb.`);
+  }
+  for (const [slotName, slot] of [
+    ["logo1", def.theme.logo1],
+    ["logo2", def.theme.logo2],
+  ] as const) {
+    if (slot?.dataUrl) {
+      if (!DATA_IMAGE_RE.test(slot.dataUrl)) {
+        errors.push(`Theme ${slotName} must be a valid PNG, JPG, or SVG base64 data URL.`);
+      } else if (slot.dataUrl.length > 800_000) {
+        errors.push(`Theme ${slotName} exceeds the maximum allowed size (~550 KB).`);
+      }
+    }
   }
 
   // Validate areas

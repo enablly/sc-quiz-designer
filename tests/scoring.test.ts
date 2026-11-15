@@ -26,7 +26,7 @@ function buildAnswersWithTargetTotal(targetTotal: number): Record<string, string
 }
 
 describe("Acceptance Test 1: Scoring vectors on seed", () => {
-  it("scores all-best as 100% Band 4", () => {
+  it("scores all-best as 100% Band 4 (total 27 / max 27)", () => {
     const answers = Object.fromEntries(
       seed.scoredQuestions.map((q) => [
         q.id,
@@ -34,14 +34,14 @@ describe("Acceptance Test 1: Scoring vectors on seed", () => {
       ]),
     );
     const res = scoreAnswers(seed, answers);
-    assert.equal(res.totalPoints, 45);
-    assert.equal(res.maxPoints, 45);
+    assert.equal(res.totalPoints, 27);
+    assert.equal(res.maxPoints, 27);
     assert.equal(res.readinessPct, 100);
     assert.equal(res.band.band, 4);
     assert.equal(res.band.label, "Hybrid ready");
   });
 
-  it("scores all-worst as 0% Band 1", () => {
+  it("scores all-worst as 0% Band 1 (total 0 / max 27)", () => {
     const answers = Object.fromEntries(
       seed.scoredQuestions.map((q) => [
         q.id,
@@ -50,12 +50,13 @@ describe("Acceptance Test 1: Scoring vectors on seed", () => {
     );
     const res = scoreAnswers(seed, answers);
     assert.equal(res.totalPoints, 0);
+    assert.equal(res.maxPoints, 27);
     assert.equal(res.readinessPct, 0);
     assert.equal(res.band.band, 1);
     assert.equal(res.band.label, "Getting started");
   });
 
-  it("scores all-2-points as 67% Band 3", () => {
+  it("scores all-2-points as 67% Band 3 (total 18 / max 27)", () => {
     const answers = Object.fromEntries(
       seed.scoredQuestions.map((q) => [
         q.id,
@@ -63,20 +64,21 @@ describe("Acceptance Test 1: Scoring vectors on seed", () => {
       ]),
     );
     const res = scoreAnswers(seed, answers);
-    assert.equal(res.totalPoints, 30);
+    assert.equal(res.totalPoints, 18);
+    assert.equal(res.maxPoints, 27);
     assert.equal(res.readinessPct, 67);
     assert.equal(res.band.band, 3);
     assert.equal(res.band.label, "Nearly there");
   });
 
-  it("places boundary raw totals (17/18, 29/30, 38/39) in the right bands", () => {
+  it("places boundary raw totals (10/11, 17/18, 22/23) in the right bands", () => {
     const cases: Array<[number, number, number]> = [
-      [17, 38, 1],
-      [18, 40, 2],
-      [29, 64, 2],
-      [30, 67, 3],
-      [38, 84, 3],
-      [39, 87, 4],
+      [10, 37, 1],
+      [11, 41, 2],
+      [17, 63, 2],
+      [18, 67, 3],
+      [22, 81, 3],
+      [23, 85, 4],
     ];
     for (const [raw, expectedPct, expectedBand] of cases) {
       const res = scoreAnswers(seed, buildAnswersWithTargetTotal(raw));
@@ -89,18 +91,24 @@ describe("Acceptance Test 1: Scoring vectors on seed", () => {
   it("returns all tied lowest areas as biggestGap", () => {
     const answers: Record<string, string> = {};
     for (const q of seed.scoredQuestions) {
-      // spaces and technology get 0 pts (0%), all other areas get 3 pts (100%)
-      const pts = q.area === "spaces" || q.area === "technology" ? 0 : 3;
+      // being_seen_and_heard and working_together get 0 pts (0%), spaces_and_support gets 3 pts (100%)
+      const pts =
+        q.area === "being_seen_and_heard" || q.area === "working_together"
+          ? 0
+          : 3;
       answers[q.id] = q.options.find((o) => o.points === pts)!.text;
     }
     const res = scoreAnswers(seed, answers);
-    assert.deepEqual(res.biggestGap, ["spaces", "technology"]);
+    assert.deepEqual(res.biggestGap, [
+      "being_seen_and_heard",
+      "working_together",
+    ]);
     assert.equal(
       res.gapHeadline,
-      "Your rooms weren't built for the screen + People can't always see or hear each other",
+      "Not everyone feels present + Remote colleagues are on the sidelines",
     );
-    assert.ok(res.gapTip.includes("camera and display"));
-    assert.ok(res.gapTip.includes("Clear audio"));
+    assert.ok(res.gapTip.includes("switch off and stop contributing"));
+    assert.ok(res.gapTip.includes("good ideas from remote colleagues get lost"));
   });
 
   it("rejects unknown answer texts and missing questions", () => {
@@ -108,7 +116,7 @@ describe("Acceptance Test 1: Scoring vectors on seed", () => {
       () => pointsForAnswer(seed, "q1", "Completely fabricated answer"),
       /unknown answer/,
     );
-    const answers = buildAnswersWithTargetTotal(30);
+    const answers = buildAnswersWithTargetTotal(18);
     answers.q5 = "Not a real option";
     assert.throws(() => scoreAnswers(seed, answers), /unknown answer/);
   });
@@ -136,7 +144,7 @@ describe("Acceptance Test 1: Scoring vectors on seed", () => {
         p1: role,
         p2: "Tech",
         p3: size,
-        p4: "Singapore",
+        p4: "Southeast Asia",
       });
       assert.equal(
         actual,

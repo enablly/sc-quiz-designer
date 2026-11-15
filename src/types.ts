@@ -3,20 +3,37 @@ export type LivePhase = "pre" | "post";
 export type HubSpotSyncStatus = "pending" | "synced" | "failed";
 export type GeminiStatus = "ok" | "fallback";
 
+export interface QuizLogoSlot {
+  /** Served path (e.g. /q/hybrid-meeting-readiness/logos/1) or external https URL */
+  url?: string;
+  /** Uploaded image encoded as data:image/(png|jpeg|svg+xml);base64,... */
+  dataUrl?: string;
+  alt?: string;
+}
+
 export interface QuizTheme {
   accent: string;
   headerText: string;
   logoUrl?: string;
+  logo1?: QuizLogoSlot;
+  logo2?: QuizLogoSlot;
+}
+
+export interface PrivacyPolicyLink {
+  label: string;
+  url: string;
 }
 
 export interface QuizConsent {
   textVersion: string;
   text: string;
+  privacyLinks?: PrivacyPolicyLink[];
 }
 
 export interface ProfileOption {
   code: string;
   text: string;
+  allowFreeText?: boolean;
 }
 
 export interface ProfileQuestion {
@@ -94,6 +111,71 @@ export interface QuizIntegration {
   };
 }
 
+export interface QuizPageCopy {
+  // Welcome & Consent
+  welcomeHeadline: string;
+  welcomeSubline: string;
+  welcomeMetaLine: string;
+  areasCoveredHeading: string;
+  consentCheckboxLabel: string;
+  startButton: string;
+  consentError: string;
+
+  // Progress & Section Intros
+  profileAreaName: string;
+  progressAreaIntroFormat: string;
+  progressQuestionFormat: string;
+  progressOverallFormat: string;
+  sectionIntroKickerFormat: string;
+  sectionIntroHeadingFormat: string;
+  continueButton: string;
+  backButton: string;
+  nextButton: string;
+
+  // Questions & "Other" Free-Text
+  keyboardHint: string;
+  questionRequiredError: string;
+  otherSpecifyLabel: string;
+  otherSpecifyPlaceholder: string;
+
+  // Lead-Capture / Identity Form & Validation
+  progressFinalStepLabel: string;
+  progressFinalOverallFormat: string;
+  identityHeading: string;
+  identitySubtitle: string;
+  firstNameLabel: string;
+  firstNameError: string;
+  lastNameLabel: string;
+  emailLabel: string;
+  emailHint: string;
+  emailError: string;
+  freeEmailWarning: string;
+  companyLabel: string;
+  companyError: string;
+  prefillCompletingAsFormat: string;
+  prefillSubmittingForFormat: string;
+  notYouButton: string;
+  submitButton: string;
+  submittingButton: string;
+  validationSummaryError: string;
+  turnstileRequiredError: string;
+  submitFailedError: string;
+  networkError: string;
+
+  // Results & CTA
+  resultsHeading: string;
+  scoresByAreaHeading: string;
+  biggestGapHeading: string;
+  biggestGapHeadingBand4: string;
+  gapCardBadge: string;
+  gapCardBadgeBand4: string;
+  ctaHeading: string;
+  ctaBody: string;
+  ctaButton: string;
+  ctaUrl: string;
+  retakeButton: string;
+}
+
 export interface QuizDefinition {
   schemaVersion: number;
   slug: string;
@@ -102,6 +184,7 @@ export interface QuizDefinition {
   status: QuizStatus;
   theme: QuizTheme;
   consent: QuizConsent;
+  copy?: Partial<QuizPageCopy>;
   sources: string[];
   profileQuestions: ProfileQuestion[];
   areas: AreaDefinition[];
@@ -150,6 +233,7 @@ export interface SubmissionDocument {
   company: string;
   source: string;
   profile: Record<string, string>;
+  profileOther?: Record<string, string>;
   answers: Record<string, string>;
   result: ScoreResult;
   priorityFollowup: boolean;

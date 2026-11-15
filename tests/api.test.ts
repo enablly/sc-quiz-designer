@@ -65,7 +65,7 @@ function validSubmissionBody(overrides: Record<string, unknown> = {}) {
     email: "Jane.Doe@Company.com",
     company: "Acme",
     source: "linkedin",
-    profile: { p1: "it", p2: "tech", p3: "500_1999", p4: "singapore" },
+    profile: { p1: "it", p2: "tech", p3: "500_1999", p4: "southeast_asia" },
     answers,
     turnstileToken: "valid-token",
     ...overrides,
@@ -191,7 +191,8 @@ describe("Engine, Admin API, Retries, and CSV Export", () => {
         validSubmissionBody({
           clientSubmissionId: "uuid-3",
           email: "nonpriority@other.com",
-          profile: { p1: "other", p2: "other", p3: "under_100", p4: "other" },
+          profile: { p1: "other", p2: "other", p3: "under_100", p4: "others" },
+          profileOther: { p1: "AV Consultant", p2: "Biotech", p4: "Middle East" },
           answers: bestAnswers,
         }),
       ),
@@ -209,7 +210,22 @@ describe("Engine, Admin API, Retries, and CSV Export", () => {
     assert.equal(retrySummary.processed, 2);
     assert.equal(retrySummary.synced, 2);
 
+    // Verify admin submissions view includes profileOther free-text values
+    const rSubs = await fetch(`${srv.baseUrl}/api/admin/quizzes/hybrid-meeting-readiness/submissions`, {
+      headers: { Authorization: "Bearer secret-admin-token" },
+    });
+    assert.equal(rSubs.status, 200);
+    const subs = (await rSubs.json()) as Array<{ email: string; profileOther?: Record<string, string> }>;
+    const otherSub = subs.find((s) => s.email === "nonpriority@other.com");
+    assert.ok(otherSub);
+    assert.deepEqual(otherSub.profileOther, {
+      p1: "AV Consultant",
+      p2: "Biotech",
+      p4: "Middle East",
+    });
+
     // Export CSV -> priority row (jane.doe@company.com, band 1) must come before nonpriority@other.com (band 4)
+    // and include profile_p1_other, profile_p2_other, profile_p4_other columns
     const rCsv = await fetch(`${srv.baseUrl}/api/admin/quizzes/hybrid-meeting-readiness/export`, {
       headers: { Authorization: "Bearer secret-admin-token" },
     });
@@ -217,8 +233,65 @@ describe("Engine, Admin API, Retries, and CSV Export", () => {
     const csvText = await rCsv.text();
     const lines = csvText.trim().split(/\r?\n/);
     assert.equal(lines.length, 3); // header + 2 respondents
+    assert.ok(lines[0]!.includes("profile_p1_other"));
+    assert.ok(lines[0]!.includes("profile_p2_other"));
+    assert.ok(lines[0]!.includes("profile_p4_other"));
     assert.ok(lines[1]!.startsWith("jane.doe@company.com,"));
     assert.ok(lines[2]!.startsWith("nonpriority@other.com,"));
+    assert.ok(lines[2]!.includes("AV Consultant"));
+    assert.ok(lines[2]!.includes("Biotech"));
+    assert.ok(lines[2]!.includes("Middle East"));
+  });
+
+  it("uploads, serves, and removes Logo 1 and Logo 2 via admin and public endpoints", async () => {
+    const srv = await startTestServer(makeConfig());
+    cleanup = srv.close;
+
+    const pngDataUrl = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+    const svgDataUrl = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMCIgaGVpZ2h0PSIxMCI+PC9zdmc+";
+
+    // Upload Logo 1
+    const rUp1 = await fetch(`${srv.baseUrl}/api/admin/quizzes/hybrid-meeting-readiness/logos/1`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer secret-admin-token",
+      },
+      body: JSON.stringify({ dataUrl: pngDataUrl, alt: "Steelcase" }),
+    });
+    assert.equal(rUp1.status, 200);
+
+    // Upload Logo 2
+    const rUp2 = await fetch(`${srv.baseUrl}/api/admin/quizzes/hybrid-meeting-readiness/logos/2`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer secret-admin-token",
+      },
+      body: JSON.stringify({ dataUrl: svgDataUrl, alt: "Logitech" }),
+    });
+    assert.equal(rUp2.status, 200);
+
+    // Serve Logo 1 and Logo 2
+    const rGet1 = await fetch(`${srv.baseUrl}/q/hybrid-meeting-readiness/logos/1`);
+    assert.equal(rGet1.status, 200);
+    assert.equal(rGet1.headers.get("content-type"), "image/png");
+
+    const rGet2 = await fetch(`${srv.baseUrl}/q/hybrid-meeting-readiness/logos/2`);
+    assert.equal(rGet2.status, 200);
+    assert.equal(rGet2.headers.get("content-type"), "image/svg+xml");
+
+    // Delete Logo 1 -> 404 on Logo 1, Logo 2 still 200
+    const rDel1 = await fetch(`${srv.baseUrl}/api/admin/quizzes/hybrid-meeting-readiness/logos/1`, {
+      method: "DELETE",
+      headers: { Authorization: "Bearer secret-admin-token" },
+    });
+    assert.equal(rDel1.status, 200);
+
+    const rGet1After = await fetch(`${srv.baseUrl}/q/hybrid-meeting-readiness/logos/1`);
+    assert.equal(rGet1After.status, 404);
+    const rGet2After = await fetch(`${srv.baseUrl}/q/hybrid-meeting-readiness/logos/2`);
+    assert.equal(rGet2After.status, 200);
   });
 
   it("caps revisions at 10 and supports one-click restore + unauthorized rejection", async () => {

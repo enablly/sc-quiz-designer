@@ -26,10 +26,12 @@ describe("Acceptance Test 5: Standalone HTML export & Design upgrade", () => {
     assert.ok(html.includes("<style>"));
     assert.ok(!/<link\b/i.test(html));
 
-    // Every http(s) URL in the generated HTML must be Turnstile or the submit endpoint
+    // Every http(s) URL in the generated HTML must be Turnstile, configured privacy links, or the submit endpoint
     const urls = html.match(/https?:\/\/[^\s"'<>\\]+/g) ?? [];
     const allowedPrefixes = [
       "https://challenges.cloudflare.com/turnstile/v0/api.js",
+      "https://www.steelcase.com/privacy-policy/",
+      "https://www.logitech.com/en-us/legal/privacy-policy.html",
       submitEndpoint,
     ];
     for (const u of urls) {
@@ -40,7 +42,7 @@ describe("Acceptance Test 5: Standalone HTML export & Design upgrade", () => {
     }
   });
 
-  it("includes welcome roadmap, area-segmented scaleX progress, section-intro cards, reactive cards, SVG score ring, and prefers-reduced-motion", () => {
+  it("includes v2 welcome headline/meta, area-segmented scaleX progress, section-intro cards, reactive cards, SVG score ring, CTA card, and prefers-reduced-motion", () => {
     const html = renderQuizHtml(seed, {
       turnstileSiteKey: "0x4AAAAAAA_test_key",
       submitEndpoint: "/api/quizzes/hybrid-meeting-readiness/submit",
@@ -48,8 +50,12 @@ describe("Acceptance Test 5: Standalone HTML export & Design upgrade", () => {
       standalone: false,
     });
 
-    // 1. Welcome screen roadmap & area list
-    assert.ok(html.includes("~3 minutes · 5 areas · 19 questions · get your readiness score and biggest gap at the end"));
+    // 1. Welcome screen v2 headline, sub-line, meta line & area list
+    assert.ok(html.includes("How Hybrid-Ready Are Your Meetings?"));
+    assert.ok(html.includes("Steelcase and Logitech: Hybrid Meeting Readiness Assessment"));
+    assert.ok(html.includes("~2 minutes · 9 questions · See how ready your meetings are for hybrid work with this assessment."));
+    assert.ok(html.includes("Steelcase privacy policy"));
+    assert.ok(html.includes("Logitech privacy policy"));
     for (const a of seed.areas) {
       assert.ok(html.includes(a.name));
       assert.ok(a.blurb && html.includes(a.blurb));
@@ -65,20 +71,23 @@ describe("Acceptance Test 5: Standalone HTML export & Design upgrade", () => {
     assert.ok(html.includes("id=\"section-intro-view\""));
     assert.ok(html.includes("id=\"intro-continue-btn\""));
 
-    // 4. Reactive answer cards + ~350ms auto-advance + A-D keyboard support
+    // 4. Reactive answer cards + ~350ms auto-advance + A-D keyboard support + Other free-text wrap
     assert.ok(html.includes("opt-card"));
     assert.ok(html.includes("opt-badge"));
     assert.ok(html.includes("selectOptionAndAutoAdvance"));
+    assert.ok(html.includes("id=\"q-other-wrap\""));
     assert.ok(html.includes("350"));
 
-    // 5 & 6. Step transitions, SVG score ring, and prefers-reduced-motion
+    // 5 & 6. Step transitions, SVG score ring, CTA card, Band 4 edge copy, and prefers-reduced-motion
     assert.ok(html.includes("stepSlideForward"));
     assert.ok(html.includes("score-ring-svg"));
     assert.ok(html.includes("id=\"res-ring-arc\""));
+    assert.ok(html.includes("Want to talk it through?"));
+    assert.ok(html.includes("Speak to us"));
+    assert.ok(html.includes("Where to keep your edge"));
     assert.ok(html.includes("@media (prefers-reduced-motion: reduce)"));
 
-    // 7. Regression checks: clean UTF-8 em-dash, non-truncated .seg-label, and 0% initial ring state
-    assert.ok(html.includes('<p class="co-brand">Steelcase + Logitech \u2014 The Hybrid Equation</p>'));
+    // 7. Regression checks: clean UTF-8, non-truncated .seg-label, and 0% initial ring state
     assert.ok(!html.includes("\u00e2\u20ac"));
     const segLabelBlock = html.match(/\.seg-label\s*\{[^}]+\}/)?.[0] ?? "";
     assert.ok(segLabelBlock.includes("white-space: normal"));
@@ -87,9 +96,71 @@ describe("Acceptance Test 5: Standalone HTML export & Design upgrade", () => {
     assert.ok(!html.includes(">30%<"));
   });
 
+  it("renders dual logos side by side, single logo alone, and falls back to text lockup when no logo is uploaded", () => {
+    const png1 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
+    const svg2 = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMCIgaGVpZ2h0PSIxMCI+PC9zdmc+";
+
+    // 0 logos -> text lockup
+    const htmlNone = renderQuizHtml(seed, {
+      turnstileSiteKey: "k",
+      submitEndpoint: "/submit",
+      previewMode: false,
+      standalone: false,
+    });
+    assert.ok(!htmlNone.includes('<div class="brand-logos"'));
+    assert.ok(htmlNone.includes("Work Better by Steelcase"));
+
+    // 1 logo -> single logo
+    const oneLogoQuiz = structuredClone(seed);
+    oneLogoQuiz.theme.logo1 = { url: "/q/hybrid-meeting-readiness/logos/1", dataUrl: png1, alt: "Steelcase Logo" };
+    const htmlOne = renderQuizHtml(oneLogoQuiz, {
+      turnstileSiteKey: "k",
+      submitEndpoint: "/submit",
+      previewMode: false,
+      standalone: false,
+    });
+    assert.ok(htmlOne.includes('<div class="brand-logos"'));
+    assert.ok(htmlOne.includes("/q/hybrid-meeting-readiness/logos/1"));
+    assert.ok(!htmlOne.includes('<span class="brand-logo-sep"'));
+
+    // 2 logos -> side by side with separator
+    const twoLogoQuiz = structuredClone(oneLogoQuiz);
+    twoLogoQuiz.theme.logo2 = { url: "/q/hybrid-meeting-readiness/logos/2", dataUrl: svg2, alt: "Logitech Logo" };
+    const htmlTwo = renderQuizHtml(twoLogoQuiz, {
+      turnstileSiteKey: "k",
+      submitEndpoint: "/submit",
+      previewMode: false,
+      standalone: false,
+    });
+    assert.ok(htmlTwo.includes("/q/hybrid-meeting-readiness/logos/1"));
+    assert.ok(htmlTwo.includes("/q/hybrid-meeting-readiness/logos/2"));
+    assert.ok(htmlTwo.includes('<span class="brand-logo-sep"'));
+  });
+
+  it("renders custom admin-edited respondent copy strings from quiz.copy", () => {
+    const custom = structuredClone(seed);
+    custom.copy = {
+      ...custom.copy,
+      welcomeHeadline: "Custom Welcome Headline For Testing",
+      ctaHeading: "Custom Specialist Call Heading",
+      ctaButton: "Book Specialist Session",
+      ctaUrl: "https://www.steelcase.com/contact-us/",
+    };
+    const html = renderQuizHtml(custom, {
+      turnstileSiteKey: "k",
+      submitEndpoint: "/submit",
+      previewMode: false,
+      standalone: false,
+    });
+    assert.ok(html.includes("Custom Welcome Headline For Testing"));
+    assert.ok(html.includes("Custom Specialist Call Heading"));
+    assert.ok(html.includes("Book Specialist Session"));
+    assert.ok(html.includes("https://www.steelcase.com/contact-us/"));
+  });
+
   it("repairs mojibake in subtitle and option strings during HTML rendering", () => {
     const corrupted = structuredClone(seed);
-    corrupted.subtitle = "Steelcase + Logitech \u00e2\u20ac\u201d The Hybrid Equation";
+    corrupted.copy = { ...corrupted.copy, welcomeSubline: "Steelcase + Logitech \u00e2\u20ac\u201d The Hybrid Equation" };
     const html = renderQuizHtml(corrupted, {
       turnstileSiteKey: "0x4AAAAAAA_test_key",
       submitEndpoint: "/api/quizzes/hybrid-meeting-readiness/submit",

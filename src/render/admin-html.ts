@@ -350,12 +350,14 @@ export function renderAdminBuilderHtml(): string {
 
         <div class="tabs" id="editor-tabs">
           <button type="button" class="tab-btn active" data-tab="meta">Meta &amp; Theme</button>
+          <button type="button" class="tab-btn" data-tab="copy">Page Copy &amp; CTA</button>
           <button type="button" class="tab-btn" data-tab="consent">Consent</button>
           <button type="button" class="tab-btn" data-tab="profile">Profile Questions</button>
           <button type="button" class="tab-btn" data-tab="areas">Areas &amp; Gap Copy</button>
           <button type="button" class="tab-btn" data-tab="questions">Scored Questions</button>
           <button type="button" class="tab-btn" data-tab="scoring">Bands, Fallbacks &amp; Rules</button>
           <button type="button" class="tab-btn" data-tab="closing">Closing &amp; Integrations</button>
+          <button type="button" class="tab-btn" data-tab="responses">Responses</button>
           <button type="button" class="tab-btn" data-tab="revisions">Revisions &amp; JSON</button>
         </div>
 
@@ -717,7 +719,7 @@ export function renderAdminBuilderHtml(): string {
       const logoIn = document.createElement("input");
       logoIn.type = "url";
       logoIn.value = draft.theme.logoUrl || "";
-      logoIn.placeholder = "https://... (optional)";
+      logoIn.placeholder = "https://... (optional fallback URL)";
       logoIn.oninput = () => { draft.theme.logoUrl = logoIn.value; schedulePreview(); };
 
       const sourcesIn = document.createElement("input");
@@ -727,16 +729,249 @@ export function renderAdminBuilderHtml(): string {
         draft.sources = sourcesIn.value.split(",").map((s) => s.trim()).filter(Boolean);
       };
 
+      const logosBox = document.createElement("div");
+      logosBox.className = "subcard";
+      logosBox.style.marginTop = "1rem";
+      const logosHead = document.createElement("div");
+      logosHead.className = "subcard-head";
+      logosHead.innerHTML = "<strong>Co-Brand Logos (Logo 1 &amp; Logo 2)</strong>";
+      const logosNote = document.createElement("p");
+      logosNote.className = "muted";
+      logosNote.style.marginTop = "0";
+      logosNote.textContent = "Upload PNG, JPG, or SVG files for Logo 1 (e.g. Steelcase) and Logo 2 (e.g. Logitech). Both render side by side when uploaded; a single logo renders alone; if neither is uploaded, the header and welcome screen fall back to the text lockup.";
+      logosBox.append(logosHead, logosNote);
+
+      const logosGrid = document.createElement("div");
+      logosGrid.className = "row";
+
+      [1, 2].forEach((slotNum) => {
+        const slotKey = slotNum === 1 ? "logo1" : "logo2";
+        const slotData = draft.theme[slotKey] || null;
+        const card = document.createElement("div");
+        card.className = "panel";
+        card.style.marginBottom = "0";
+
+        const cardTitle = document.createElement("strong");
+        cardTitle.style.display = "block";
+        cardTitle.style.marginBottom = "0.5rem";
+        cardTitle.textContent = "Logo " + slotNum + (slotNum === 1 ? " (Primary)" : " (Co-brand)");
+        card.append(cardTitle);
+
+        const prevWrap = document.createElement("div");
+        prevWrap.style.minHeight = "64px";
+        prevWrap.style.display = "flex";
+        prevWrap.style.alignItems = "center";
+        prevWrap.style.justifyContent = "center";
+        prevWrap.style.background = "#f3f4f6";
+        prevWrap.style.border = "1px dashed #cbd5e1";
+        prevWrap.style.borderRadius = "6px";
+        prevWrap.style.padding = "0.5rem";
+        prevWrap.style.marginBottom = "0.65rem";
+
+        if (slotData && slotData.dataUrl) {
+          const img = document.createElement("img");
+          img.src = slotData.dataUrl;
+          img.alt = slotData.alt || ("Logo " + slotNum);
+          img.style.maxHeight = "44px";
+          img.style.maxWidth = "180px";
+          img.style.objectFit = "contain";
+          prevWrap.append(img);
+        } else {
+          const emptyTxt = document.createElement("span");
+          emptyTxt.className = "muted";
+          emptyTxt.textContent = "No logo uploaded";
+          prevWrap.append(emptyTxt);
+        }
+        card.append(prevWrap);
+
+        const altIn = document.createElement("input");
+        altIn.type = "text";
+        altIn.placeholder = slotNum === 1 ? "Steelcase" : "Logitech";
+        altIn.value = slotData?.alt || "";
+        altIn.oninput = () => {
+          if (draft.theme[slotKey]) {
+            draft.theme[slotKey].alt = altIn.value;
+            schedulePreview();
+          }
+        };
+        card.append(makeField("Alt Text", altIn));
+
+        const fileIn = document.createElement("input");
+        fileIn.type = "file";
+        fileIn.accept = ".png,.jpg,.jpeg,.svg,image/png,image/jpeg,image/svg+xml";
+        fileIn.style.fontSize = "0.82rem";
+        fileIn.style.marginBottom = "0.5rem";
+        fileIn.onchange = () => {
+          const file = fileIn.files?.[0];
+          if (!file) return;
+          const reader = new FileReader();
+          reader.onload = async () => {
+            const dataUrl = String(reader.result || "");
+            const alt = altIn.value.trim() || (slotNum === 1 ? "Logo 1" : "Logo 2");
+            try {
+              const saved = await api("/api/admin/quizzes/" + encodeURIComponent(currentSlug) + "/logos/" + slotNum, {
+                method: "POST",
+                body: JSON.stringify({ dataUrl, alt }),
+              });
+              draft.theme = saved.theme;
+              showBanner("Uploaded Logo " + slotNum + ".");
+              renderTab();
+              schedulePreview();
+            } catch (err) {
+              showBanner("Logo upload failed: " + err.message, true);
+            }
+          };
+          reader.readAsDataURL(file);
+        };
+        card.append(makeField("Upload / Replace (PNG, JPG, SVG)", fileIn));
+
+        if (slotData && slotData.dataUrl) {
+          const rmBtn = document.createElement("button");
+          rmBtn.type = "button";
+          rmBtn.className = "btn btn-sm btn-danger";
+          rmBtn.textContent = "Remove Logo " + slotNum;
+          rmBtn.onclick = async () => {
+            try {
+              const saved = await api("/api/admin/quizzes/" + encodeURIComponent(currentSlug) + "/logos/" + slotNum, {
+                method: "DELETE",
+              });
+              draft.theme = saved.theme;
+              showBanner("Removed Logo " + slotNum + ".");
+              renderTab();
+              schedulePreview();
+            } catch (err) {
+              showBanner("Remove logo failed: " + err.message, true);
+            }
+          };
+          card.append(rmBtn);
+        }
+
+        logosGrid.append(card);
+      });
+
+      logosBox.append(logosGrid);
+
       p.append(
         makeField("Title", titleIn),
         makeField("Subtitle", subIn),
         makeField("Slug (URL-safe)", slugIn),
         makeField("Status", statusSel),
         makeField("Theme Accent Color", colorWrap),
-        makeField("Theme Header Text", headerIn),
-        makeField("Logo URL (optional)", logoIn),
+        makeField("Theme Header Text (Fallback lockup)", headerIn),
+        logosBox,
+        makeField("Legacy Logo URL (optional fallback)", logoIn),
         makeField("Allowed Tracking Sources (comma-separated)", sourcesIn),
       );
+      tabContent.append(p);
+      return;
+    }
+
+    if (activeTab === "copy") {
+      if (!draft.copy) draft.copy = {};
+      const p = document.createElement("div");
+      p.className = "panel";
+
+      const intro = document.createElement("p");
+      intro.className = "muted";
+      intro.style.marginTop = "0";
+      intro.textContent = "Every respondent-visible heading, sub-line, button label, progress template, form label, error message, and CTA card string is editable below.";
+      p.append(intro);
+
+      const copyGroups = [
+        {
+          title: "Welcome Screen & Co-Brand Lockup",
+          fields: [
+            ["welcomeSubline", "Welcome Sub-line / Co-brand Lockup", "Steelcase and Logitech: Hybrid Meeting Readiness Assessment"],
+            ["welcomeHeadline", "Welcome Headline", "How Hybrid-Ready Are Your Meetings?"],
+            ["welcomeMetaTemplate", "Welcome Meta Line (supports {areas}, {questions})", "~2 minutes · {questions} questions · See how ready your meetings are for hybrid work with this assessment."],
+            ["welcomeAreasHeading", "Welcome Areas List Heading", "Areas covered in this assessment"],
+            ["consentRequiredError", "Consent Required Error Message", "Please tick the consent box to continue."],
+            ["startButton", "Start Button Label", "Start the assessment"],
+          ],
+        },
+        {
+          title: "Progress Bar & Section Intros",
+          fields: [
+            ["progressProfileLabel", "Profile Progress Label (supports {current}, {total})", "About you · Question {current} of {total}"],
+            ["progressQuestionTemplate", "Scored Question Progress Label (supports {area}, {areaIndex}, {areaTotal}, {overallIndex}, {overallTotal})", "{area} · Question {areaIndex} of {areaTotal} in this area · {overallIndex} of {overallTotal} overall"],
+            ["sectionIntroEyebrowTemplate", "Section Intro Eyebrow (supports {index}, {total})", "Area {index} of {total}"],
+            ["sectionIntroDefaultBlurb", "Default Section Intro Blurb", "Let's look at how your spaces and habits perform in this area."],
+            ["sectionIntroContinueButton", "Section Intro Continue Button", "Continue"],
+            ["backButton", "Back Button Label", "← Back"],
+          ],
+        },
+        {
+          title: "Questions & 'Other' Free-Text Input",
+          fields: [
+            ["profileQuestionEyebrowTemplate", "Profile Question Eyebrow (supports {current}, {total})", "Profile · {current} of {total}"],
+            ["scoredQuestionEyebrowTemplate", "Scored Question Eyebrow (supports {area}, {current}, {total})", "{area} · {current} of {total}"],
+            ["keyboardHint", "Desktop Keyboard Hint", "Tip: press A–D to select, Enter to continue"],
+            ["otherSpecifyLabel", "'Other' Free-Text Input Label", "Please specify (optional)"],
+            ["otherSpecifyPlaceholder", "'Other' Free-Text Input Placeholder", "Type your answer..."],
+          ],
+        },
+        {
+          title: "Lead-Capture Step & Form Validation",
+          fields: [
+            ["leadEyebrow", "Lead Step Eyebrow", "Last step"],
+            ["leadHeading", "Lead Step Heading", "Where should we send your results?"],
+            ["leadSubheading", "Lead Step Subheading", "Your readiness score and biggest gap will appear on the next screen immediately."],
+            ["firstNameLabel", "First Name Label", "First name"],
+            ["firstNameError", "First Name Error Message", "Please enter your first name."],
+            ["lastNameLabel", "Last Name Label", "Last name"],
+            ["lastNameError", "Last Name Error Message", "Please enter your last name."],
+            ["emailLabel", "Work Email Label", "Work email"],
+            ["emailError", "Work Email Error Message", "Please enter a valid work email address."],
+            ["companyLabel", "Company Label", "Company"],
+            ["companyError", "Company Error Message", "Please enter your company name."],
+            ["jobTitleLabel", "Job Title Label", "Job title"],
+            ["jobTitleOptionalText", "Job Title Optional Suffix", "(optional)"],
+            ["submitButton", "Submit Button Label", "See my results"],
+            ["submittingButton", "Submitting Button Label (in progress)", "Calculating your results…"],
+            ["turnstileError", "Turnstile Error Message", "Please complete the verification check before submitting."],
+            ["networkError", "Network Error Message", "Network error while submitting. Please check your connection and try again."],
+          ],
+        },
+        {
+          title: "Results Screen & 'Speak to us' CTA Card",
+          fields: [
+            ["resultsReadinessLabel", "Score Ring Sub-label", "Readiness"],
+            ["resultsBreakdownHeading", "Area Breakdown Heading", "Breakdown by area"],
+            ["resultsGapHeadingSingular", "Gap Section Heading (Singular, Bands 1–3)", "Your biggest gap"],
+            ["resultsGapHeadingPlural", "Gap Section Heading (Tied/Plural, Bands 1–3)", "Your biggest gaps"],
+            ["resultsGapBadgeText", "Gap Card Badge Text (Bands 1–3)", "Priority focus area"],
+            ["resultsBand4GapHeading", "Band 4 Section Heading", "Where to keep your edge"],
+            ["resultsBand4BadgeText", "Band 4 Card Badge Text", "Strength to maintain"],
+            ["ctaHeading", "CTA Card Heading", "Want to talk it through?"],
+            ["ctaBody", "CTA Card Body", "Book a short call with a Steelcase workplace specialist about your biggest gap."],
+            ["ctaButton", "CTA Button Label", "Speak to us"],
+            ["ctaUrl", "CTA Destination URL", "#"],
+          ],
+        },
+      ];
+
+      copyGroups.forEach((grp) => {
+        const box = document.createElement("div");
+        box.className = "subcard";
+        const h = document.createElement("div");
+        h.className = "subcard-head";
+        h.innerHTML = "<strong>" + grp.title + "</strong>";
+        box.append(h);
+
+        grp.fields.forEach(([key, label, placeholder]) => {
+          const inp = document.createElement("input");
+          inp.type = "text";
+          inp.value = draft.copy[key] ?? placeholder;
+          inp.placeholder = placeholder;
+          inp.oninput = () => {
+            draft.copy[key] = inp.value;
+            schedulePreview();
+          };
+          box.append(makeField(label, inp));
+        });
+        p.append(box);
+      });
+
       tabContent.append(p);
       return;
     }
@@ -754,6 +989,60 @@ export function renderAdminBuilderHtml(): string {
       txtIn.oninput = () => { draft.consent.text = txtIn.value; schedulePreview(); };
 
       p.append(makeField("Consent Text Version", verIn), makeField("Consent Copy", txtIn));
+
+      if (!Array.isArray(draft.consent.privacyLinks)) {
+        draft.consent.privacyLinks = [
+          { label: "Steelcase privacy policy", url: "https://www.steelcase.com/privacy-policy/" },
+          { label: "Logitech privacy policy", url: "https://www.logitech.com/en-us/legal/privacy-policy.html" },
+        ];
+      }
+
+      const linksBox = document.createElement("div");
+      linksBox.className = "subcard";
+      linksBox.innerHTML = "<div class=\\"subcard-head\\"><strong>Privacy Policy Links</strong></div>";
+
+      draft.consent.privacyLinks.forEach((lnk, li) => {
+        const row = document.createElement("div");
+        row.className = "opt-row";
+        row.style.gridTemplateColumns = "1fr 1.4fr auto";
+        const lblIn = document.createElement("input");
+        lblIn.type = "text";
+        lblIn.placeholder = "Link label (e.g. Steelcase privacy policy)";
+        lblIn.value = lnk.label || "";
+        lblIn.oninput = () => { lnk.label = lblIn.value; schedulePreview(); };
+
+        const urlIn = document.createElement("input");
+        urlIn.type = "text";
+        urlIn.placeholder = "https://...";
+        urlIn.value = lnk.url || "";
+        urlIn.oninput = () => { lnk.url = urlIn.value; schedulePreview(); };
+
+        const delBtn = document.createElement("button");
+        delBtn.type = "button";
+        delBtn.className = "btn btn-sm";
+        delBtn.textContent = "×";
+        delBtn.onclick = () => {
+          draft.consent.privacyLinks.splice(li, 1);
+          renderTab();
+          schedulePreview();
+        };
+
+        row.append(lblIn, urlIn, delBtn);
+        linksBox.append(row);
+      });
+
+      const addLinkBtn = document.createElement("button");
+      addLinkBtn.type = "button";
+      addLinkBtn.className = "btn btn-sm";
+      addLinkBtn.textContent = "+ Add Privacy Policy Link";
+      addLinkBtn.onclick = () => {
+        draft.consent.privacyLinks.push({ label: "Privacy policy", url: "https://" });
+        renderTab();
+        schedulePreview();
+      };
+      linksBox.append(addLinkBtn);
+      p.append(linksBox);
+
       tabContent.append(p);
       return;
     }
@@ -796,23 +1085,36 @@ export function renderAdminBuilderHtml(): string {
         const optTitle = document.createElement("div");
         optTitle.className = "muted";
         optTitle.style.marginBottom = "0.35rem";
-        optTitle.textContent = "Options (code + display text):";
+        optTitle.textContent = "Options (code, display text, and optional 'Other' free-text input):";
         box.append(optTitle);
 
         pq.options.forEach((opt, oi) => {
           const row = document.createElement("div");
           row.className = "opt-row";
-          row.style.gridTemplateColumns = "140px 1fr auto";
+          row.style.gridTemplateColumns = "130px 1fr auto auto";
           const codeIn = document.createElement("input");
           codeIn.type = "text"; codeIn.value = opt.code; codeIn.placeholder = "code";
           codeIn.oninput = () => { opt.code = codeIn.value; schedulePreview(); };
           const textIn = document.createElement("input");
           textIn.type = "text"; textIn.value = opt.text; textIn.placeholder = "Display text";
           textIn.oninput = () => { opt.text = textIn.value; schedulePreview(); };
+
+          const ftLbl = document.createElement("label");
+          ftLbl.style.display = "inline-flex";
+          ftLbl.style.alignItems = "center";
+          ftLbl.style.gap = "0.3rem";
+          ftLbl.style.fontSize = "0.78rem";
+          ftLbl.style.whiteSpace = "nowrap";
+          const ftChk = document.createElement("input");
+          ftChk.type = "checkbox";
+          ftChk.checked = Boolean(opt.allowFreeText);
+          ftChk.onchange = () => { opt.allowFreeText = ftChk.checked; schedulePreview(); };
+          ftLbl.append(ftChk, document.createTextNode("Free-text"));
+
           const delOpt = document.createElement("button");
           delOpt.type = "button"; delOpt.className = "btn btn-sm"; delOpt.textContent = "×";
           delOpt.onclick = () => { pq.options.splice(oi, 1); renderTab(); schedulePreview(); };
-          row.append(codeIn, textIn, delOpt);
+          row.append(codeIn, textIn, ftLbl, delOpt);
           box.append(row);
         });
 
@@ -1140,6 +1442,80 @@ export function renderAdminBuilderHtml(): string {
         gemWrap,
       );
       tabContent.append(p);
+      return;
+    }
+
+    if (activeTab === "responses") {
+      const p = document.createElement("div");
+      p.className = "panel";
+      const headRow = document.createElement("div");
+      headRow.className = "subcard-head";
+      headRow.innerHTML = "<h3 style=\\"margin:0;\\">Recent Submissions</h3>";
+      const csvBtn = document.createElement("a");
+      csvBtn.className = "btn btn-sm";
+      csvBtn.href = "/api/admin/quizzes/" + encodeURIComponent(draft.slug) + "/export";
+      csvBtn.textContent = "Download CSV";
+      headRow.append(csvBtn);
+      p.append(headRow);
+
+      const listWrap = document.createElement("div");
+      listWrap.className = "muted";
+      listWrap.textContent = "Loading submissions…";
+      p.append(listWrap);
+      tabContent.append(p);
+
+      api("/api/admin/quizzes/" + encodeURIComponent(draft.slug) + "/submissions")
+        .then((subs) => {
+          listWrap.innerHTML = "";
+          if (!Array.isArray(subs) || subs.length === 0) {
+            listWrap.textContent = "No submissions recorded for this quiz yet.";
+            return;
+          }
+          subs.forEach((s) => {
+            const card = document.createElement("div");
+            card.className = "subcard";
+            card.style.color = "#111827";
+            const top = document.createElement("div");
+            top.className = "subcard-head";
+            const who = document.createElement("strong");
+            who.textContent = (s.firstName || "") + " " + (s.lastName || "") + " <" + (s.email || "") + ">";
+            const scoreBadge = document.createElement("span");
+            scoreBadge.className = "badge badge-published";
+            scoreBadge.textContent = s.overallPct + "% · " + (s.bandLabel || ("Band " + s.band));
+            top.append(who, scoreBadge);
+
+            const meta = document.createElement("div");
+            meta.className = "muted";
+            meta.textContent =
+              (s.company || "") +
+              (s.jobTitle ? " · " + s.jobTitle : "") +
+              " · " +
+              (s.submittedAt || "") +
+              " · Gap: " +
+              (s.lowestAreas || []).join(", ");
+
+            const profList = document.createElement("div");
+            profList.style.marginTop = "0.45rem";
+            profList.style.fontSize = "0.84rem";
+            const profParts = [];
+            const profObj = s.profile || {};
+            const otherObj = s.profileOther || {};
+            Object.keys(profObj).forEach((pid) => {
+              let val = profObj[pid];
+              if (otherObj[pid]) {
+                val += " (\"" + otherObj[pid] + "\")";
+              }
+              profParts.push(pid.toUpperCase() + ": " + val);
+            });
+            profList.textContent = profParts.join("  |  ");
+
+            card.append(top, meta, profList);
+            listWrap.append(card);
+          });
+        })
+        .catch((err) => {
+          listWrap.textContent = "Failed to load submissions: " + err.message;
+        });
       return;
     }
 

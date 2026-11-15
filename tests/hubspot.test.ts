@@ -7,10 +7,10 @@ import { loadSeedDefinition } from "../src/services/seed-loader.js";
 const seed = loadSeedDefinition();
 
 describe("Acceptance Test 2: HubSpot payload builder", () => {
-  it("outputs the exact 30 fields with expected values", () => {
+  it("outputs the exact 26 fields with expected values for the 3-area v2 framework", () => {
     const answers: Record<string, string> = {};
     for (const q of seed.scoredQuestions) {
-      const pts = q.area === "equity" ? 0 : 2;
+      const pts = q.area === "working_together" ? 0 : 2;
       answers[q.id] = q.options.find((o) => o.points === pts)!.text;
     }
     const result = scoreAnswers(seed, answers);
@@ -25,17 +25,17 @@ describe("Acceptance Test 2: HubSpot payload builder", () => {
         p1: "it",
         p2: "tech",
         p3: "500_1999",
-        p4: "singapore",
+        p4: "southeast_asia",
       },
       result,
       geminiText: "Sample paragraph.",
-      consentTextVersion: "consent-2026-11-v1",
+      consentTextVersion: "consent-2026-11-v2",
       submittedAtIso: "2026-11-25T10:00:00.000Z",
-      pageUri: "https://hybrid.enablly.com/q/hybrid-meeting-readiness",
+      pageUri: "https://steelcase-hybrid-workplace.enablly.com/q/hybrid-meeting-readiness",
       hutk: "hutk-123",
     });
 
-    assert.equal(fields.length, 30);
+    assert.equal(fields.length, 26);
     const map = Object.fromEntries(fields.map((f) => [f.name, f.value]));
 
     const expectedKeys = [
@@ -47,16 +47,12 @@ describe("Acceptance Test 2: HubSpot payload builder", () => {
       "hybrid_readiness_band",
       "hybrid_band_number",
       "hybrid_biggest_gap",
-      "hybrid_area_spaces_pct",
-      "hybrid_area_spaces_score",
-      "hybrid_area_technology_pct",
-      "hybrid_area_technology_score",
-      "hybrid_area_equity_pct",
-      "hybrid_area_equity_score",
-      "hybrid_area_people_pct",
-      "hybrid_area_people_score",
-      "hybrid_area_support_pct",
-      "hybrid_area_support_score",
+      "hybrid_area_being_seen_and_heard_pct",
+      "hybrid_area_being_seen_and_heard_score",
+      "hybrid_area_working_together_pct",
+      "hybrid_area_working_together_score",
+      "hybrid_area_spaces_and_support_pct",
+      "hybrid_area_spaces_and_support_score",
       "hybrid_total_points",
       "hybrid_role",
       "hybrid_industry",
@@ -76,26 +72,28 @@ describe("Acceptance Test 2: HubSpot payload builder", () => {
     assert.equal(map.firstname, "Ada");
     assert.equal(map.lastname, "Lovelace");
     assert.equal(map.company, "Acme Corp");
-    assert.equal(map.hybrid_total_points, "24");
-    assert.equal(map.hybrid_readiness_pct, "53");
+    assert.equal(map.hybrid_total_points, "12");
+    assert.equal(map.hybrid_readiness_pct, "44");
     assert.equal(map.hybrid_band_number, "2");
     assert.equal(map.hybrid_readiness_band, "Making progress");
-    assert.equal(map.hybrid_biggest_gap, "Meeting equity");
-    assert.equal(map.hybrid_area_equity_pct, "0");
-    assert.equal(map.hybrid_area_equity_score, "0");
-    assert.equal(map.hybrid_area_spaces_pct, "67");
-    assert.equal(map.hybrid_area_spaces_score, "6");
+    assert.equal(map.hybrid_biggest_gap, "Working together");
+    assert.equal(map.hybrid_area_working_together_pct, "0");
+    assert.equal(map.hybrid_area_working_together_score, "0");
+    assert.equal(map.hybrid_area_being_seen_and_heard_pct, "67");
+    assert.equal(map.hybrid_area_being_seen_and_heard_score, "6");
+    assert.equal(map.hybrid_area_spaces_and_support_pct, "67");
+    assert.equal(map.hybrid_area_spaces_and_support_score, "6");
     assert.equal(map.hybrid_role, "IT");
     assert.equal(map.hybrid_industry, "Tech");
     assert.equal(map.hybrid_office_size, "500–1,999");
-    assert.equal(map.hybrid_market, "Singapore");
+    assert.equal(map.hybrid_market, "Southeast Asia");
     assert.equal(map.hybrid_source, "linkedin");
     assert.equal(map.hybrid_priority_followup, "true");
     assert.equal(map.hybrid_quiz_completed_at, String(Date.parse("2026-11-25T10:00:00.000Z")));
-    assert.equal(map.hybrid_consent, "consent-2026-11-v1 · 2026-11-25");
+    assert.equal(map.hybrid_consent, "consent-2026-11-v2 · 2026-11-25");
     assert.equal(map.hybrid_gemini_paragraph, "Sample paragraph.");
     assert.equal(map.hybrid_gap_headline, "Remote colleagues are on the sidelines");
-    assert.ok(map.hybrid_gap_tip?.includes("Shared whiteboards"));
+    assert.ok(map.hybrid_gap_tip?.includes("good ideas from remote colleagues get lost"));
 
     const payload = buildHubSpotPayload(seed, {
       email: "ada@acme.com",
@@ -103,17 +101,17 @@ describe("Acceptance Test 2: HubSpot payload builder", () => {
       lastName: "Lovelace",
       company: "Acme Corp",
       source: "linkedin",
-      profile: { p1: "it", p2: "tech", p3: "500_1999", p4: "singapore" },
+      profile: { p1: "it", p2: "tech", p3: "500_1999", p4: "southeast_asia" },
       result,
       geminiText: "Sample paragraph.",
-      consentTextVersion: "consent-2026-11-v1",
+      consentTextVersion: "consent-2026-11-v2",
       submittedAtIso: "2026-11-25T10:00:00.000Z",
-      pageUri: "https://hybrid.enablly.com/q/hybrid-meeting-readiness",
+      pageUri: "https://steelcase-hybrid-workplace.enablly.com/q/hybrid-meeting-readiness",
       hutk: "hutk-123",
     });
     assert.equal(payload.context.hutk, "hutk-123");
     assert.equal(payload.legalConsentOptions.consent.consentToProcess, true);
-    assert.ok(payload.legalConsentOptions.consent.text.includes("consent-2026-11-v1"));
+    assert.ok(payload.legalConsentOptions.consent.text.includes("consent-2026-11-v2"));
   });
 
   it("uses api-eu1 host when HUBSPOT_REGION=eu", async () => {

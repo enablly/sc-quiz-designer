@@ -1,7 +1,7 @@
 import { Router } from "express";
 import type { AppConfig } from "../config.js";
-import { buildSubmissionsCsv } from "../domain/csv.js";
-import { validateQuizDefinition } from "../domain/validator.js";
+import { buildSubmissionsCsv, sortSubmissionsForExport } from "../domain/csv.js";
+import { DATA_IMAGE_RE, validateQuizDefinition } from "../domain/validator.js";
 import { renderAdminBuilderHtml, renderAdminLoginHtml } from "../render/admin-html.js";
 import { renderQuizHtml } from "../render/quiz-html.js";
 import { runRetrySweep } from "../services/sync-pipeline.js";
@@ -230,6 +230,76 @@ export function createAdminRouter(deps: AdminRouterDeps): Router {
       `attachment; filename="${quiz.slug}-standalone.html"`,
     );
     res.type("text/html; charset=utf-8").send(html);
+  });
+
+  router.get("/api/admin/quizzes/:slug/submissions", async (req, res) => {
+    const quiz = await deps.store.getQuiz(req.params.slug);
+    if (!quiz) {
+      res.status(404).json({ error: "Quiz not found." });
+      return;
+    }
+    const submissions = await deps.store.listSubmissionsBySlug(quiz.slug);
+    res.json(sortSubmissionsForExport(submissions));
+  });
+
+  router.post("/api/admin/quizzes/:slug/logos/:slot", async (req, res) => {
+    const { slug, slot } = req.params;
+    if (slot !== "1" && slot !== "2") {
+      res.status(400).json({ error: "Logo slot must be '1' or '2'." });
+      return;
+    }
+    const quiz = await deps.store.getQuiz(slug);
+    if (!quiz) {
+      res.status(404).json({ error: "Quiz not found." });
+      return;
+    }
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const dataUrl = String(body.dataUrl ?? "").trim().replace(/\s+/g, "");
+    const alt = String(body.alt ?? `Logo ${slot}`).trim();
+    if (!dataUrl || !DATA_IMAGE_RE.test(dataUrl)) {
+      res.status(400).json({ error: "Logo must be a valid PNG, JPG, or SVG base64 data URL." });
+      return;
+    }
+    if (dataUrl.length > 800_000) {
+      res.status(400).json({ error: "Logo exceeds the maximum allowed size (~550 KB)." });
+      return;
+    }
+    const slotKey = slot === "1" ? "logo1" : "logo2";
+    const updated: QuizDefinition = {
+      ...structuredClone(quiz),
+      theme: {
+        ...quiz.theme,
+        [slotKey]: {
+          url: `/q/${encodeURIComponent(quiz.slug)}/logos/${slot}?v=${Date.now()}`,
+          dataUrl,
+          alt: alt || `Logo ${slot}`,
+        },
+      },
+    };
+    const rev = await deps.store.saveQuiz(updated, `Uploaded logo ${slot}`);
+    res.json(rev.definition);
+  });
+
+  router.delete("/api/admin/quizzes/:slug/logos/:slot", async (req, res) => {
+    const { slug, slot } = req.params;
+    if (slot !== "1" && slot !== "2") {
+      res.status(400).json({ error: "Logo slot must be '1' or '2'." });
+      return;
+    }
+    const quiz = await deps.store.getQuiz(slug);
+    if (!quiz) {
+      res.status(404).json({ error: "Quiz not found." });
+      return;
+    }
+    const nextTheme = { ...quiz.theme };
+    if (slot === "1") delete nextTheme.logo1;
+    else delete nextTheme.logo2;
+    const updated: QuizDefinition = {
+      ...structuredClone(quiz),
+      theme: nextTheme,
+    };
+    const rev = await deps.store.saveQuiz(updated, `Removed logo ${slot}`);
+    res.json(rev.definition);
   });
 
   router.get("/api/admin/quizzes/:slug/export", async (req, res) => {

@@ -1,8 +1,8 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "slug": "hybrid-meeting-readiness",
   "title": "Hybrid Meeting Readiness Assessment",
-  "subtitle": "Steelcase + Logitech — The Hybrid Equation",
+  "subtitle": "Steelcase and Logitech: Hybrid Meeting Readiness Assessment",
   "status": "draft",
   "theme": {
     "accent": "#6b4fbb",
@@ -10,8 +10,73 @@
     "logoUrl": ""
   },
   "consent": {
-    "textVersion": "consent-2026-11-v1",
-    "text": "Steelcase and Logitech are running The Hybrid Equation together. This assessment asks about your meeting spaces, technology and habits. Your answers, your readiness score and the areas where your organisation scores lowest will be shared with Steelcase and Logitech so we can send you your results and relevant follow-up about hybrid meetings, in line with the PDPA and other applicable privacy rules. We also use combined, anonymised results to describe overall trends."
+    "textVersion": "consent-2026-11-v2",
+    "text": "We'll email your results and may follow up with ideas relevant to your workplace. Your details are handled in line with our privacy policy.",
+    "privacyLinks": [
+      {
+        "label": "Steelcase privacy policy",
+        "url": "https://www.steelcase.com/privacy-policy/"
+      },
+      {
+        "label": "Logitech privacy policy",
+        "url": "https://www.logitech.com/en-us/legal/privacy-policy.html"
+      }
+    ]
+  },
+  "copy": {
+    "welcomeHeadline": "How Hybrid-Ready Are Your Meetings?",
+    "welcomeSubline": "Steelcase and Logitech: Hybrid Meeting Readiness Assessment",
+    "welcomeMetaLine": "~2 minutes · 9 questions · See how ready your meetings are for hybrid work with this assessment.",
+    "areasCoveredHeading": "Areas covered",
+    "consentCheckboxLabel": "I have read and agree to the terms above.",
+    "startButton": "Start assessment",
+    "consentError": "Please confirm your consent before starting the assessment.",
+    "profileAreaName": "About your organization",
+    "progressAreaIntroFormat": "{areaName} · Area {areaIndex} of {totalAreas}",
+    "progressQuestionFormat": "{areaName} · Question {indexInArea} of {areaTotal} in this area",
+    "progressOverallFormat": "{overallIndex} of {totalQuestions} overall",
+    "sectionIntroKickerFormat": "Area {areaIndex} of {totalAreas}",
+    "sectionIntroHeadingFormat": "Area {areaIndex} of {totalAreas} — {areaName}",
+    "continueButton": "Continue",
+    "backButton": "Back",
+    "nextButton": "Next",
+    "keyboardHint": "Tip: Press A–D to select, or Enter to continue.",
+    "questionRequiredError": "Please select an option to continue.",
+    "otherSpecifyLabel": "Please specify",
+    "otherSpecifyPlaceholder": "Type your answer...",
+    "progressFinalStepLabel": "Final step · Your details",
+    "progressFinalOverallFormat": "{totalQuestions} of {totalQuestions} complete",
+    "identityHeading": "Where should we send your report?",
+    "identitySubtitle": "Enter your details to unlock your readiness breakdown.",
+    "firstNameLabel": "First name",
+    "firstNameError": "Please enter your first name.",
+    "lastNameLabel": "Last name",
+    "emailLabel": "Work email",
+    "emailHint": "Format: name@company.com",
+    "emailError": "Enter a valid email address like name@company.com.",
+    "freeEmailWarning": "Heads up: it looks like a personal email address. Using your work email ensures your team report routes properly, though you can still submit with this address.",
+    "companyLabel": "Company",
+    "companyError": "Please enter your company name.",
+    "prefillCompletingAsFormat": "Completing as {who}",
+    "prefillSubmittingForFormat": "Submitting for {name} ({email}, {company})",
+    "notYouButton": "Not you?",
+    "submitButton": "See my results",
+    "submittingButton": "Calculating...",
+    "validationSummaryError": "Please check the highlighted fields.",
+    "turnstileRequiredError": "Please complete the verification check before submitting.",
+    "submitFailedError": "Could not submit your answers. Please try again.",
+    "networkError": "Network error while submitting. Please try again.",
+    "resultsHeading": "Your readiness results",
+    "scoresByAreaHeading": "Scores by area",
+    "biggestGapHeading": "Biggest gap",
+    "biggestGapHeadingBand4": "Where to keep your edge",
+    "gapCardBadge": "Priority focus area",
+    "gapCardBadgeBand4": "Strength to maintain",
+    "ctaHeading": "Want to talk it through?",
+    "ctaBody": "Book a short call with a Steelcase workplace specialist about your biggest gap.",
+    "ctaButton": "Speak to us",
+    "ctaUrl": "#",
+    "retakeButton": "Retake assessment"
   },
   "sources": [
     "rsvp",
@@ -45,7 +110,8 @@
         },
         {
           "code": "other",
-          "text": "Other"
+          "text": "Other",
+          "allowFreeText": true
         }
       ]
     },
@@ -75,13 +141,14 @@
         },
         {
           "code": "other",
-          "text": "Other"
+          "text": "Other",
+          "allowFreeText": true
         }
       ]
     },
     {
       "id": "p3",
-      "label": "How many people work at your primary office or campus?",
+      "label": "How many people are in your organization across Asia Pacific?",
       "options": [
         {
           "code": "under_100",
@@ -103,311 +170,222 @@
     },
     {
       "id": "p4",
-      "label": "Which market are you based in?",
+      "label": "Which region are you based in?",
       "options": [
         {
-          "code": "singapore",
-          "text": "Singapore"
-        },
-        {
-          "code": "malaysia",
-          "text": "Malaysia"
-        },
-        {
           "code": "australia_nz",
-          "text": "Australia / NZ"
+          "text": "Australia and New Zealand"
+        },
+        {
+          "code": "greater_china",
+          "text": "Greater China region"
         },
         {
           "code": "india",
           "text": "India"
         },
         {
-          "code": "greater_china",
-          "text": "Greater China"
+          "code": "japan",
+          "text": "Japan"
         },
         {
-          "code": "japan_korea",
-          "text": "Japan / Korea"
+          "code": "korea",
+          "text": "Korea"
         },
         {
-          "code": "other",
-          "text": "Other"
+          "code": "southeast_asia",
+          "text": "Southeast Asia"
+        },
+        {
+          "code": "others",
+          "text": "Others",
+          "allowFreeText": true
         }
       ]
     }
   ],
   "areas": [
     {
-      "key": "spaces",
-      "name": "Spaces",
-      "blurb": "Rooms where everyone faces the camera and display help remote people feel present, not like observers."
+      "key": "being_seen_and_heard",
+      "name": "Being seen and heard",
+      "blurb": "Whether people can see and hear each other clearly, and feel present in the room."
     },
     {
-      "key": "technology",
-      "name": "Technology",
-      "blurb": "Clear audio, framing cameras, and one-touch starts remove the most common hybrid meeting friction."
+      "key": "working_together",
+      "name": "Working together",
+      "blurb": "Whether everyone can contribute, share and be heard, wherever they join from."
     },
     {
-      "key": "equity",
-      "name": "Meeting equity",
-      "blurb": "Shared content and inclusive room setups let remote colleagues contribute on equal footing, not just listen."
-    },
-    {
-      "key": "people",
-      "name": "People and habits",
-      "blurb": "Simple shared habits and leader role-modelling make every hybrid call more inclusive and consistent."
-    },
-    {
-      "key": "support",
-      "name": "Support and planning",
-      "blurb": "Clear cross-functional ownership and room-use data turn one-off fixes into steady improvement."
+      "key": "spaces_and_support",
+      "name": "Spaces and support",
+      "blurb": "Whether your spaces and support keep up with how people meet now."
     }
   ],
   "scoredQuestions": [
     {
       "id": "q1",
-      "area": "spaces",
-      "text": "When you book a meeting room for a hybrid call, how often does it actually work well for it?",
-      "displayOrder": [1, 0, 3, 2],
+      "area": "being_seen_and_heard",
+      "text": "When you join a meeting remotely, how well can you see the people in the room?",
+      "displayOrder": [0, 1, 2, 3],
       "options": [
-        { "points": 3, "text": "Almost always" },
-        { "points": 2, "text": "Usually" },
-        { "points": 1, "text": "Sometimes" },
-        { "points": 0, "text": "Rarely" }
+        { "points": 3, "text": "Clearly, and the view follows whoever is speaking" },
+        { "points": 2, "text": "Most people, in one wide shot" },
+        { "points": 1, "text": "Only those closest to the camera" },
+        { "points": 0, "text": "It's hard to make anyone out" }
       ]
     },
     {
       "id": "q2",
-      "area": "spaces",
-      "text": "How are your meeting rooms set up?",
-      "displayOrder": [2, 0, 1, 3],
+      "area": "being_seen_and_heard",
+      "text": "How well can remote participants hear everyone in the room?",
+      "displayOrder": [0, 1, 2, 3],
       "options": [
-        { "points": 3, "text": "Designed around the camera and screen, so everyone faces both" },
-        { "points": 2, "text": "Mostly standard tables, with some rooms adapted" },
-        { "points": 1, "text": "Standard boardroom tables with a screen at one end" },
-        { "points": 0, "text": "Rooms weren't planned for hybrid" }
+        { "points": 3, "text": "Clearly, even people at the far end" },
+        { "points": 2, "text": "Mostly, with the odd \"can you repeat that?\"" },
+        { "points": 1, "text": "People often have to repeat themselves" },
+        { "points": 0, "text": "It's a regular frustration" }
       ]
     },
     {
       "id": "q3",
-      "area": "spaces",
-      "text": "Do you have the right mix of room sizes for how people meet today?",
-      "displayOrder": [1, 3, 0, 2],
+      "area": "being_seen_and_heard",
+      "text": "For people in the room, how present do remote colleagues feel?",
+      "displayOrder": [0, 1, 2, 3],
       "options": [
-        { "points": 3, "text": "Yes, from focus booths to large rooms" },
-        { "points": 2, "text": "Mostly, but small rooms are always full" },
-        { "points": 1, "text": "We mainly have large rooms" },
-        { "points": 0, "text": "Not sure" }
+        { "points": 3, "text": "Like they're at the table: large, clear, at eye level" },
+        { "points": 2, "text": "Visible, but small or off to one side" },
+        { "points": 1, "text": "On a laptop or a screen few can see" },
+        { "points": 0, "text": "Easy to forget they're there" }
       ]
     },
     {
       "id": "q4",
-      "area": "technology",
-      "text": "Can remote participants clearly hear everyone in the room?",
-      "displayOrder": [0, 2, 3, 1],
+      "area": "working_together",
+      "text": "When a team brainstorms or uses a whiteboard, can remote participants take part?",
+      "displayOrder": [0, 1, 2, 3],
       "options": [
-        { "points": 3, "text": "Always, even people at the far end" },
-        { "points": 2, "text": "Most of the time" },
-        { "points": 1, "text": "Often people need to repeat themselves" },
-        { "points": 0, "text": "It's a regular complaint" }
+        { "points": 3, "text": "Yes, they add to a shared board in real time" },
+        { "points": 2, "text": "They can see it but can't easily add to it" },
+        { "points": 1, "text": "Someone sends a photo afterwards" },
+        { "points": 0, "text": "They're left out" }
       ]
     },
     {
       "id": "q5",
-      "area": "technology",
-      "text": "Can remote participants clearly see everyone in the room, not just the person nearest the camera?",
-      "displayOrder": [2, 1, 0, 3],
+      "area": "working_together",
+      "text": "How easy is it to start a meeting and share content in your rooms?",
+      "displayOrder": [0, 1, 2, 3],
       "options": [
-        { "points": 3, "text": "Yes, the camera frames speakers automatically" },
-        { "points": 2, "text": "Usually, with one wide view" },
-        { "points": 1, "text": "Only people near the camera" },
-        { "points": 0, "text": "No" }
+        { "points": 3, "text": "One touch, under a minute" },
+        { "points": 2, "text": "A few minutes, mostly smooth" },
+        { "points": 1, "text": "Often 5+ minutes of setting up" },
+        { "points": 0, "text": "We regularly need IT's help" }
       ]
     },
     {
       "id": "q6",
-      "area": "technology",
-      "text": "How long does it take to start a hybrid meeting?",
-      "displayOrder": [3, 1, 0, 2],
+      "area": "working_together",
+      "text": "Do remote participants get an equal chance to speak?",
+      "displayOrder": [0, 1, 2, 3],
       "options": [
-        { "points": 3, "text": "Under a minute, one touch" },
-        { "points": 2, "text": "A few minutes" },
-        { "points": 1, "text": "Often 5+ minutes of fiddling" },
-        { "points": 0, "text": "We often need IT to help" }
+        { "points": 3, "text": "Yes, hosts actively bring them in" },
+        { "points": 2, "text": "Usually" },
+        { "points": 1, "text": "They're often talked over or forgotten" },
+        { "points": 0, "text": "Rarely" }
       ]
     },
     {
       "id": "q7",
-      "area": "equity",
-      "text": "Can remote participants see and contribute to whiteboards or shared content?",
-      "displayOrder": [1, 2, 0, 3],
+      "area": "spaces_and_support",
+      "text": "Do you have the right spaces for how people meet now?",
+      "displayOrder": [0, 1, 2, 3],
       "options": [
-        { "points": 3, "text": "Yes, easily and in real time" },
-        { "points": 2, "text": "With a workaround, like taking photos" },
-        { "points": 1, "text": "Rarely" },
-        { "points": 0, "text": "No" }
+        { "points": 3, "text": "A good mix of small and large rooms, all video-ready" },
+        { "points": 2, "text": "Mostly, but small video-ready rooms are always booked" },
+        { "points": 1, "text": "Mainly large boardrooms, few small rooms" },
+        { "points": 0, "text": "Our meeting spaces haven't changed since before hybrid" }
       ]
     },
     {
       "id": "q8",
-      "area": "equity",
-      "text": "How often do remote participants get talked over or forgotten?",
-      "displayOrder": [2, 0, 3, 1],
+      "area": "spaces_and_support",
+      "text": "How often do people in the office join meetings from their desks instead of a meeting room?",
+      "displayOrder": [0, 1, 2, 3],
       "options": [
-        { "points": 3, "text": "Rarely" },
-        { "points": 2, "text": "Occasionally" },
-        { "points": 1, "text": "Often" },
-        { "points": 0, "text": "Almost always" }
-      ]
-    },
-    {
-      "id": "q9",
-      "area": "equity",
-      "text": "Do people prefer to join from their desk rather than walk into the meeting room?",
-      "displayOrder": [0, 3, 1, 2],
-      "options": [
-        { "points": 3, "text": "Rarely, rooms work better" },
+        { "points": 3, "text": "Rarely, the rooms work better" },
         { "points": 2, "text": "Sometimes" },
         { "points": 1, "text": "Often" },
         { "points": 0, "text": "Most people avoid the rooms" }
       ]
     },
     {
-      "id": "q10",
-      "area": "people",
-      "text": "Do your teams have shared ways of running hybrid meetings (e.g. one person checks the chat, everyone joins on time)?",
-      "displayOrder": [2, 1, 3, 0],
+      "id": "q9",
+      "area": "spaces_and_support",
+      "text": "Does anyone own and improve the meeting experience?",
+      "displayOrder": [0, 1, 2, 3],
       "options": [
-        { "points": 3, "text": "Yes, agreed and practised" },
-        { "points": 2, "text": "Some teams do" },
-        { "points": 1, "text": "Informally, it depends on the host" },
-        { "points": 0, "text": "No" }
-      ]
-    },
-    {
-      "id": "q11",
-      "area": "people",
-      "text": "How confident are people using the meeting room technology without help?",
-      "displayOrder": [1, 0, 2, 3],
-      "options": [
-        { "points": 3, "text": "Very confident" },
-        { "points": 2, "text": "Most people are fine" },
-        { "points": 1, "text": "Only a few people know how" },
-        { "points": 0, "text": "Most people avoid it" }
-      ]
-    },
-    {
-      "id": "q12",
-      "area": "people",
-      "text": "Do leaders run hybrid meetings in a way that includes remote participants?",
-      "displayOrder": [3, 0, 1, 2],
-      "options": [
-        { "points": 3, "text": "Yes, consistently" },
-        { "points": 2, "text": "Most do" },
-        { "points": 1, "text": "A few do" },
-        { "points": 0, "text": "Not really" }
-      ]
-    },
-    {
-      "id": "q13",
-      "area": "support",
-      "text": "Does someone own the hybrid meeting experience in your organisation?",
-      "displayOrder": [1, 2, 0, 3],
-      "options": [
-        { "points": 3, "text": "Yes, a named owner across facilities, IT and HR" },
-        { "points": 2, "text": "Partly, one team owns it" },
-        { "points": 1, "text": "It's unclear" },
-        { "points": 0, "text": "No one" }
-      ]
-    },
-    {
-      "id": "q14",
-      "area": "support",
-      "text": "Do you know how your meeting rooms are actually used (booked vs. used, room fit, problems)?",
-      "displayOrder": [0, 2, 1, 3],
-      "options": [
-        { "points": 3, "text": "Yes, we track and act on it" },
-        { "points": 2, "text": "We have some data" },
-        { "points": 1, "text": "We rely on anecdotes" },
-        { "points": 0, "text": "No idea" }
-      ]
-    },
-    {
-      "id": "q15",
-      "area": "support",
-      "text": "Do you have a plan to improve hybrid meetings in the next 12 months?",
-      "displayOrder": [2, 3, 0, 1],
-      "options": [
-        { "points": 3, "text": "Yes, funded and underway" },
-        { "points": 2, "text": "Being planned" },
-        { "points": 1, "text": "Discussed, nothing firm" },
-        { "points": 0, "text": "No" }
+        { "points": 3, "text": "Yes, facilities, IT and HR work together and track how rooms are used" },
+        { "points": 2, "text": "One team owns it, with some data" },
+        { "points": 1, "text": "It's handled when something breaks" },
+        { "points": 0, "text": "No one really owns it" }
       ]
     }
   ],
   "scoring": {
-    "scoringVersion": "v1-equal",
+    "scoringVersion": "v2",
     "bands": [
       {
         "band": 1,
         "min": 0,
         "max": 39,
         "label": "Getting started",
-        "headline": "You're at [X]%. Hybrid meetings are likely costing your teams time and energy.",
-        "body": "You're not alone: many workplaces added cameras without rethinking the room. The good news is that a few targeted changes make a visible difference fast."
+        "headline": "You're at [X]%. Your meetings are probably costing your people time and energy.",
+        "body": "Many workplaces added a camera without rethinking the room. A few focused changes can make a visible difference quickly."
       },
       {
         "band": 2,
         "min": 40,
         "max": 64,
         "label": "Making progress",
-        "headline": "You're at [X]%. The foundations are there, but remote colleagues are still missing out.",
-        "body": "Your teams can meet, but not yet as equals. Closing the gaps below is where you'll see the biggest jump in meeting quality."
+        "headline": "You're at [X]%. The basics work, but remote colleagues are still missing out.",
+        "body": "Your teams can meet, but not yet as equals. Your biggest gap below is where you'll see the fastest improvement."
       },
       {
         "band": 3,
         "min": 65,
         "max": 84,
         "label": "Nearly there",
-        "headline": "You're at [X]%. You're ahead of many, with a few gaps holding you back.",
-        "body": "Small fixes in your weakest area could make hybrid meetings feel effortless for everyone."
+        "headline": "You're at [X]%. You're ahead of many, with one or two gaps holding you back.",
+        "body": "Small fixes in your weakest area can make meetings feel effortless for everyone."
       },
       {
         "band": 4,
         "min": 85,
         "max": 100,
         "label": "Hybrid ready",
-        "headline": "You're at [X]%. Your hybrid meetings are working well.",
-        "body": "Keep it that way as teams and technology change. See how others are taking the next step."
+        "headline": "You're at [X]%. Your meetings are working well for everyone.",
+        "body": "Keep it that way as your teams and ways of working change."
       }
     ],
     "gapCopy": {
-      "spaces": {
-        "headline": "Your rooms weren't built for the screen",
-        "tip": "Rooms where everyone faces the camera and display help remote people feel present, not like observers."
+      "being_seen_and_heard": {
+        "headline": "Not everyone feels present",
+        "tip": "When people can't see or hear clearly, they switch off and stop contributing."
       },
-      "technology": {
-        "headline": "People can't always see or hear each other",
-        "tip": "Clear audio and cameras that frame whoever is speaking remove the most common hybrid frustrations."
-      },
-      "equity": {
+      "working_together": {
         "headline": "Remote colleagues are on the sidelines",
-        "tip": "Shared whiteboards and content everyone can reach let remote people contribute, not just listen."
+        "tip": "When only the room can contribute, good ideas from remote colleagues get lost."
       },
-      "people": {
-        "headline": "Good hybrid meetings depend on who's hosting",
-        "tip": "Simple shared habits, like one person watching the chat, make every meeting more inclusive."
-      },
-      "support": {
-        "headline": "No one owns the hybrid experience",
-        "tip": "A named owner and basic room-use data turn one-off fixes into steady improvement."
+      "spaces_and_support": {
+        "headline": "Your spaces haven't caught up with how people work",
+        "tip": "When rooms are the wrong size or hard to use, people avoid them."
       }
     },
     "fallbackParagraphs": {
       "1": "Your overall readiness is {pct}% ({band}), and the clearest signal in your answers is {gapNames}. That is where hybrid meetings are most likely costing your teams time today. The most practical first move is the one tied to that gap: {gapTip} Starting there tends to make the next steps easier, because the other areas build on rooms and habits people can rely on.",
-      "2": "Your overall readiness is {pct}% ({band}). The foundations are in place, and your answers point to {gapNames} as the area holding the rest back. The other areas score higher, which suggests the issue is less about effort and more about one part of the setup. A focused fix helps most: {gapTip} Closing that gap is where you should see the biggest jump in meeting quality.",
-      "3": "Your overall readiness is {pct}% ({band}), which puts you ahead of many organisations. Your answers are fairly even, with {gapNames} the lowest of the five areas. That pattern usually means small, specific fixes rather than a programme of change. The highest-value one is this: {gapTip} With that addressed, your remaining gaps are the kind that steady attention keeps closed.",
-      "4": "Your overall readiness is {pct}% ({band}) — your hybrid meetings are working well across all five areas. Even so, your answers put {gapNames} lowest, which makes it the area to watch as teams and technology change. The habit that protects a strong score is simple: {gapTip} Keeping that in place is what stops a high score drifting as new people and new tools arrive."
+      "2": "Your overall readiness is {pct}% ({band}). The basics are in place, and your answers point to {gapNames} as the area holding the rest back. The other areas score higher, which suggests the issue is less about effort and more about one part of the setup. Why it matters: {gapTip} Closing that gap is where you should see the fastest improvement in meeting quality.",
+      "3": "Your overall readiness is {pct}% ({band}), which puts you ahead of many organizations. Your answers are fairly even, with {gapNames} the lowest of the three areas. That pattern usually means small, specific fixes rather than a broad program of change. Why it matters: {gapTip} With that addressed, your remaining gaps are the kind that steady attention keeps closed.",
+      "4": "Your overall readiness is {pct}% ({band}) — your hybrid meetings are working well across all three areas. Even so, your answers put {gapNames} as the area to watch as teams and ways of working change. Why it matters: {gapTip} Keeping that in place is what stops a strong score from drifting as new people and new tools arrive."
     },
     "priorityRule": {
       "bandsAtOrBelow": 2,
@@ -432,7 +410,7 @@
   "integration": {
     "hubspot": {
       "mappingStyle": "hybrid-2026",
-      "note": "Renderer builds the 4 standard + 26 hybrid_* form fields from this definition; property names live in the integration profile, not the quiz content."
+      "note": "Renderer builds the 4 standard + 22 hybrid_* form fields from this definition; property names follow the definition's area keys."
     },
     "gemini": {
       "enabled": true,

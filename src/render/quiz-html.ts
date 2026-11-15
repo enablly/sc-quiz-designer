@@ -1,6 +1,10 @@
-import type { QuizDefinition } from "../types.js";
+import type { PrivacyPolicyLink, QuizDefinition, QuizLogoSlot } from "../types.js";
 import { orderedOptions } from "../domain/scoring.js";
-import { repairMojibake } from "../domain/validator.js";
+import {
+  DEFAULT_PRIVACY_LINKS,
+  repairMojibake,
+  resolvePageCopy,
+} from "../domain/validator.js";
 
 export interface RenderQuizOptions {
   turnstileSiteKey: string;
@@ -41,10 +45,60 @@ function defaultProfileLabel(id: string, index: number): string {
   const defaults: Record<string, string> = {
     p1: "What best describes your role?",
     p2: "Which industry are you in?",
-    p3: "How many people work at your primary office or campus?",
-    p4: "Which market are you based in?",
+    p3: "How many people are in your organization across Asia Pacific?",
+    p4: "Which region are you based in?",
   };
   return defaults[id] ?? `Profile question ${index + 1}`;
+}
+
+interface ResolvedLogo {
+  src: string;
+  alt: string;
+}
+
+export function resolveQuizLogos(
+  quiz: QuizDefinition,
+  opts: RenderQuizOptions,
+): ResolvedLogo[] {
+  const resolveSlot = (
+    slot: QuizLogoSlot | undefined,
+    slotNum: 1 | 2,
+    fallbackAlt: string,
+  ): ResolvedLogo | null => {
+    if (!slot) return null;
+    const alt = slot.alt?.trim() || fallbackAlt;
+    if (opts.previewMode || opts.standalone) {
+      if (slot.dataUrl) return { src: slot.dataUrl, alt };
+      if (slot.url) return { src: slot.url, alt };
+      return null;
+    }
+    if (slot.url) return { src: slot.url, alt };
+    if (slot.dataUrl) {
+      return {
+        src: `/q/${encodeURIComponent(quiz.slug)}/logos/${slotNum}`,
+        alt,
+      };
+    }
+    return null;
+  };
+
+  const logos: ResolvedLogo[] = [];
+  const l1 = resolveSlot(quiz.theme?.logo1, 1, "Steelcase");
+  const l2 = resolveSlot(quiz.theme?.logo2, 2, "Logitech");
+  if (l1) logos.push(l1);
+  if (l2) logos.push(l2);
+
+  if (
+    logos.length === 0 &&
+    quiz.theme?.logoUrl &&
+    /^https?:\/\//i.test(quiz.theme.logoUrl)
+  ) {
+    logos.push({
+      src: quiz.theme.logoUrl,
+      alt: quiz.theme.headerText || quiz.title,
+    });
+  }
+  return logos;
 }
 
 export function renderQuizHtml(
@@ -55,26 +109,44 @@ export function renderQuizHtml(
     ? quiz.theme.accent
     : "#6b4fbb";
   const accentFg = contrastForegroundHex(accent);
+  const copy = resolvePageCopy(quiz);
 
+  const scoredQuestionCount = quiz.scoredQuestions.length;
   const totalQuestionCount =
     quiz.profileQuestions.length + quiz.scoredQuestions.length;
   const estMinutes = Math.max(2, Math.round(totalQuestionCount * 0.15));
   const areaCount = quiz.areas.length;
-  const roadmapText = `~${estMinutes} minutes \u00b7 ${areaCount} ${
-    areaCount === 1 ? "area" : "areas"
-  } \u00b7 ${totalQuestionCount} questions \u00b7 get your readiness score and biggest gap at the end`;
+
+  const roadmapText = copy.welcomeMetaLine
+    .replace(/\{minutes\}/g, String(estMinutes))
+    .replace(/\{areas\}/g, String(areaCount))
+    .replace(/\{questions\}/g, String(scoredQuestionCount));
+
+  const privacyLinks: PrivacyPolicyLink[] = Array.isArray(
+    quiz.consent?.privacyLinks,
+  )
+    ? quiz.consent.privacyLinks.filter((l) => l && l.label && l.url)
+    : DEFAULT_PRIVACY_LINKS;
 
   const gapCopy = quiz.scoring.gapCopy ?? {};
   const clientQuizPayload = {
     slug: quiz.slug,
     title: quiz.title,
     subtitle: quiz.subtitle,
-    consent: quiz.consent,
+    consent: {
+      ...quiz.consent,
+      privacyLinks,
+    },
+    copy,
     sources: quiz.sources,
     profileQuestions: quiz.profileQuestions.map((pq, idx) => ({
       id: pq.id,
       label: pq.label?.trim() || defaultProfileLabel(pq.id, idx),
-      options: pq.options,
+      options: pq.options.map((o) => ({
+        code: o.code,
+        text: o.text,
+        ...(o.allowFreeText ? { allowFreeText: true } : {}),
+      })),
     })),
     areas: quiz.areas.map((a) => ({
       key: a.key,
@@ -102,11 +174,45 @@ export function renderQuizHtml(
     ? ""
     : `<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>`;
 
-  const logoHtml =
-    quiz.theme.logoUrl && /^https?:\/\//i.test(quiz.theme.logoUrl)
-      ? `<img class="brand-logo" src="${escapeHtml(quiz.theme.logoUrl)}" alt="${escapeHtml(
-          quiz.theme.headerText || quiz.title,
-        )}">`
+  const logos = resolveQuizLogos(quiz, opts);
+  const hasLogos = logos.length > 0;
+
+  const headerBrandHtml = hasLogos
+    ? `<div class="brand-logos" aria-label="${escapeHtml(quiz.theme.headerText || quiz.title)}">${logos
+        .map(
+          (l) =>
+            `<img class="brand-logo" src="${escapeHtml(l.src)}" alt="${escapeHtml(l.alt)}">`,
+        )
+        .join('<span class="brand-logo-sep" aria-hidden="true"></span>')}</div>`
+    : `<span class="header-kicker">${escapeHtml(quiz.theme.headerText || quiz.title)}</span>`;
+
+  const pageLogoLockupHtml = hasLogos
+    ? `<div class="page-logos">${logos
+        .map(
+          (l) =>
+            `<img class="page-logo" src="${escapeHtml(l.src)}" alt="${escapeHtml(l.alt)}">`,
+        )
+        .join('<span class="page-logo-sep" aria-hidden="true"></span>')}</div>`
+    : "";
+
+  const welcomeBrandHtml = hasLogos
+    ? `${pageLogoLockupHtml}<p class="co-brand">${escapeHtml(copy.welcomeSubline)}</p>`
+    : `<p class="co-brand">${escapeHtml(copy.welcomeSubline)}</p>`;
+
+  const resultsBrandHtml = hasLogos
+    ? pageLogoLockupHtml
+    : `<p class="co-brand results-co-brand">${escapeHtml(copy.welcomeSubline)}</p>`;
+
+  const privacyLinksHtml =
+    privacyLinks.length > 0
+      ? `<div class="privacy-links">${privacyLinks
+          .map(
+            (l) =>
+              `<a class="privacy-link" href="${escapeHtml(l.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(
+                l.label,
+              )}</a>`,
+          )
+          .join('<span class="privacy-sep" aria-hidden="true">\u00b7</span>')}</div>`
       : "";
 
   const areaPillsHtml = quiz.areas
@@ -187,7 +293,38 @@ ${turnstileScript}
     align-items: center;
     gap: 0.75rem;
   }
-  .brand-logo { max-height: 32px; width: auto; }
+  .brand-logos {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+  }
+  .brand-logo { max-height: 32px; width: auto; display: block; }
+  .brand-logo-sep {
+    width: 1px;
+    height: 20px;
+    background: currentColor;
+    opacity: 0.4;
+  }
+  .page-logos {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.65rem;
+  }
+  .page-logo {
+    max-height: 36px;
+    max-width: 160px;
+    width: auto;
+    display: block;
+    object-fit: contain;
+  }
+  .page-logo-sep {
+    width: 1px;
+    height: 24px;
+    background: var(--border);
+  }
   .header-kicker {
     font-weight: 600;
     font-size: 0.95rem;
@@ -232,7 +369,7 @@ ${turnstileScript}
     color: var(--text);
     font-size: 0.9rem;
     font-weight: 600;
-    padding: 0.5rem 0.85rem;
+    padding: 0.5rem 0.9rem;
     border-radius: 999px;
     margin-bottom: 1.15rem;
   }
@@ -292,7 +429,7 @@ ${turnstileScript}
   }
   .seg-grid {
     display: grid;
-    grid-template-columns: repeat(var(--area-count, 5), minmax(0, 1fr));
+    grid-template-columns: repeat(var(--area-count, 3), minmax(0, 1fr));
     gap: 0.35rem;
     align-items: start;
   }
@@ -464,6 +601,14 @@ ${turnstileScript}
   .options-list.is-locking .opt-card:not(.is-selected) {
     opacity: 0.48;
   }
+  .other-specify-wrap {
+    margin-top: 0.85rem;
+    margin-bottom: 0.25rem;
+    padding: 0.85rem 1rem;
+    background: #f9fafb;
+    border: 1.5px solid var(--accent-border, #d6ccff);
+    border-radius: 10px;
+  }
   .kbd-hint {
     font-size: 0.8rem;
     color: var(--muted);
@@ -494,6 +639,21 @@ ${turnstileScript}
     padding: 1rem;
     margin-bottom: 1rem;
     font-size: 0.92rem;
+    color: var(--muted);
+  }
+  .privacy-links {
+    margin-top: 0.5rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+  }
+  .privacy-link {
+    color: var(--accent);
+    font-weight: 600;
+    text-decoration: underline;
+  }
+  .privacy-sep {
     color: var(--muted);
   }
   .checkbox-row {
@@ -605,8 +765,12 @@ ${turnstileScript}
     border-radius: 10px;
     border: 1.5px solid transparent;
     cursor: pointer;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
   }
-  .btn:focus-visible, input:focus-visible, .link-btn:focus-visible {
+  .btn:focus-visible, input:focus-visible, .link-btn:focus-visible, a:focus-visible {
     outline: 3px solid #0b57d0;
     outline-offset: 2px;
   }
@@ -758,6 +922,33 @@ ${turnstileScript}
     margin-bottom: 0.25rem;
   }
   .gap-card h3 { margin-bottom: 0.3rem; font-size: 1.08rem; }
+  .cta-card {
+    margin-top: 1.25rem;
+    padding: 1.25rem;
+    border-radius: 12px;
+    border: 1.5px solid var(--accent-border, #d6ccff);
+    background: #ffffff;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+  .cta-card-copy {
+    flex: 1 1 260px;
+  }
+  .cta-card-copy h3 {
+    margin: 0 0 0.25rem;
+    font-size: 1.1rem;
+  }
+  .cta-card-copy p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.95rem;
+  }
+  .cta-btn {
+    margin-inline-start: 0;
+  }
   .closing-box {
     margin-top: 1.35rem;
     padding: 1rem 1.15rem;
@@ -788,8 +979,7 @@ ${turnstileScript}
 <body>
   <header class="site-header">
     <div class="header-inner">
-      ${logoHtml}
-      <span class="header-kicker">${escapeHtml(quiz.theme.headerText || quiz.title)}</span>
+      ${headerBrandHtml}
     </div>
   </header>
 
@@ -812,31 +1002,32 @@ ${turnstileScript}
 
       <!-- 1. Welcome + Consent screen -->
       <form id="consent-view" hidden novalidate>
-        <p class="co-brand">${escapeHtml(quiz.subtitle)}</p>
-        <h1 id="welcome-heading" tabindex="-1">${escapeHtml(quiz.title)}</h1>
+        ${welcomeBrandHtml}
+        <h1 id="welcome-heading" tabindex="-1">${escapeHtml(copy.welcomeHeadline)}</h1>
         <div id="welcome-roadmap" class="roadmap-pill">${escapeHtml(roadmapText)}</div>
 
-        <p class="welcome-areas-title">Areas covered</p>
-        <ul class="welcome-areas" aria-label="Assessment areas">
+        <p class="welcome-areas-title">${escapeHtml(copy.areasCoveredHeading)}</p>
+        <ul class="welcome-areas" aria-label="${escapeHtml(copy.areasCoveredHeading)}">
           ${areaPillsHtml}
         </ul>
 
         <div id="prefill-consent-banner" class="prefill-banner" hidden>
           <span id="prefill-summary"></span>
-          <button type="button" id="not-you-btn-1" class="link-btn">Not you?</button>
+          <button type="button" id="not-you-btn-1" class="link-btn">${escapeHtml(copy.notYouButton)}</button>
         </div>
 
         <div class="consent-box">
           <p style="margin:0">${escapeHtml(quiz.consent.text)}</p>
+          ${privacyLinksHtml}
         </div>
 
         <label class="checkbox-row" for="consent-checkbox">
           <input type="checkbox" id="consent-checkbox" required>
-          <span>I have read and agree to the terms above.</span>
+          <span>${escapeHtml(copy.consentCheckboxLabel)}</span>
         </label>
 
         <div class="actions">
-          <button type="submit" class="btn btn-primary" enterkeyhint="next">Start assessment</button>
+          <button type="submit" class="btn btn-primary" enterkeyhint="next">${escapeHtml(copy.startButton)}</button>
         </div>
       </form>
 
@@ -848,8 +1039,8 @@ ${turnstileScript}
           <p id="intro-blurb" class="section-intro-blurb"></p>
         </div>
         <div class="actions">
-          <button type="button" id="intro-back-btn" class="btn btn-secondary" enterkeyhint="previous">Back</button>
-          <button type="button" id="intro-continue-btn" class="btn btn-primary" enterkeyhint="next">Continue</button>
+          <button type="button" id="intro-back-btn" class="btn btn-secondary" enterkeyhint="previous">${escapeHtml(copy.backButton)}</button>
+          <button type="button" id="intro-continue-btn" class="btn btn-primary" enterkeyhint="next">${escapeHtml(copy.continueButton)}</button>
         </div>
       </div>
 
@@ -858,64 +1049,69 @@ ${turnstileScript}
         <fieldset class="option-fieldset">
           <legend id="question-legend" tabindex="-1"></legend>
           <div id="question-options" class="options-list"></div>
-          <div class="kbd-hint" aria-hidden="true">Tip: Press A&ndash;D to select, or Enter to continue.</div>
+          <div id="q-other-wrap" class="field other-specify-wrap" hidden>
+            <label id="q-other-label" for="q-other-input">${escapeHtml(copy.otherSpecifyLabel)}</label>
+            <input type="text" id="q-other-input" name="otherSpecify" maxlength="300" placeholder="${escapeHtml(copy.otherSpecifyPlaceholder)}" enterkeyhint="next">
+          </div>
+          <div class="kbd-hint" aria-hidden="true">${escapeHtml(copy.keyboardHint)}</div>
         </fieldset>
         <div class="actions">
-          <button type="button" id="q-back-btn" class="btn btn-secondary" enterkeyhint="previous">Back</button>
-          <button type="submit" id="q-next-btn" class="btn btn-primary" enterkeyhint="next">Next</button>
+          <button type="button" id="q-back-btn" class="btn btn-secondary" enterkeyhint="previous">${escapeHtml(copy.backButton)}</button>
+          <button type="submit" id="q-next-btn" class="btn btn-primary" enterkeyhint="next">${escapeHtml(copy.nextButton)}</button>
         </div>
       </form>
 
       <!-- Identity + Turnstile -->
       <form id="identity-view" hidden novalidate>
-        <h2 id="identity-heading" tabindex="-1">Where should we send your report?</h2>
-        <p class="subtitle">Enter your details to unlock your readiness breakdown.</p>
+        <h2 id="identity-heading" tabindex="-1">${escapeHtml(copy.identityHeading)}</h2>
+        <p class="subtitle">${escapeHtml(copy.identitySubtitle)}</p>
 
         <div id="prefill-identity-banner" class="prefill-banner" hidden>
           <span id="prefill-identity-text"></span>
-          <button type="button" id="not-you-btn-2" class="link-btn">Not you?</button>
+          <button type="button" id="not-you-btn-2" class="link-btn">${escapeHtml(copy.notYouButton)}</button>
         </div>
 
         <div id="identity-fields">
           <div class="field">
-            <label for="id-fn">First name <span aria-hidden="true">*</span></label>
+            <label for="id-fn">${escapeHtml(copy.firstNameLabel)} <span aria-hidden="true">*</span></label>
             <input type="text" id="id-fn" name="firstName" autocomplete="given-name" required data-error="err-fn">
-            <div id="err-fn" class="error-msg"><span role="img" aria-label="Error">!</span> Please enter your first name.</div>
+            <div id="err-fn" class="error-msg"><span role="img" aria-label="Error">!</span> ${escapeHtml(copy.firstNameError)}</div>
           </div>
 
           <div class="field">
-            <label for="id-ln">Last name</label>
+            <label for="id-ln">${escapeHtml(copy.lastNameLabel)}</label>
             <input type="text" id="id-ln" name="lastName" autocomplete="family-name">
           </div>
 
           <div class="field">
-            <label for="id-em">Work email <span aria-hidden="true">*</span></label>
-            <span id="email-hint" class="hint">Format: name@company.com</span>
+            <label for="id-em">${escapeHtml(copy.emailLabel)} <span aria-hidden="true">*</span></label>
+            <span id="email-hint" class="hint">${escapeHtml(copy.emailHint)}</span>
             <input type="email" id="id-em" name="email" autocomplete="email" autocorrect="off" autocapitalize="none" spellcheck="false" required aria-describedby="email-hint" data-error="err-em">
-            <div id="err-em" class="error-msg"><span role="img" aria-label="Error">!</span> Enter a valid email address like name@company.com.</div>
+            <div id="err-em" class="error-msg"><span role="img" aria-label="Error">!</span> ${escapeHtml(copy.emailError)}</div>
             <div id="free-email-warn" class="soft-warning" hidden>
-              Heads up: it looks like a personal email address. Using your work email ensures your team report routes properly, though you can still submit with this address.
+              ${escapeHtml(copy.freeEmailWarning)}
             </div>
           </div>
 
           <div class="field">
-            <label for="id-co">Company <span aria-hidden="true">*</span></label>
+            <label for="id-co">${escapeHtml(copy.companyLabel)} <span aria-hidden="true">*</span></label>
             <input type="text" id="id-co" name="company" autocomplete="organization" required data-error="err-co">
-            <div id="err-co" class="error-msg"><span role="img" aria-label="Error">!</span> Please enter your company name.</div>
+            <div id="err-co" class="error-msg"><span role="img" aria-label="Error">!</span> ${escapeHtml(copy.companyError)}</div>
           </div>
         </div>
 
         <div id="turnstile-container" class="turnstile-wrap"></div>
 
         <div class="actions">
-          <button type="button" id="id-back-btn" class="btn btn-secondary" enterkeyhint="previous">Back</button>
-          <button type="submit" id="submit-btn" class="btn btn-primary" enterkeyhint="done">See my results</button>
+          <button type="button" id="id-back-btn" class="btn btn-secondary" enterkeyhint="previous">${escapeHtml(copy.backButton)}</button>
+          <button type="submit" id="submit-btn" class="btn btn-primary" enterkeyhint="done">${escapeHtml(copy.submitButton)}</button>
         </div>
       </form>
 
       <!-- 6. Results screen -->
       <section id="results-view" hidden>
-        <h2 id="results-heading" tabindex="-1">Your readiness results</h2>
+        ${resultsBrandHtml}
+        <h2 id="results-heading" tabindex="-1">${escapeHtml(copy.resultsHeading)}</h2>
         <div id="score-hero" class="score-hero">
           <div class="score-ring-wrap">
             <svg class="score-ring-svg" viewBox="0 0 120 120" aria-hidden="true">
@@ -931,17 +1127,26 @@ ${turnstileScript}
           </div>
         </div>
 
-        <h3>Scores by area</h3>
+        <h3 id="res-areas-heading">${escapeHtml(copy.scoresByAreaHeading)}</h3>
         <div id="res-areas" style="margin-bottom:1.5rem;"></div>
 
         <div id="res-gap-section" class="gap-section">
-          <h3>Biggest gap</h3>
+          <h3 id="res-gap-heading">${escapeHtml(copy.biggestGapHeading)}</h3>
           <div id="res-gaps"></div>
+
+          <div id="res-cta-card" class="cta-card">
+            <div class="cta-card-copy">
+              <h3 id="res-cta-heading">${escapeHtml(copy.ctaHeading)}</h3>
+              <p id="res-cta-body">${escapeHtml(copy.ctaBody)}</p>
+            </div>
+            <a id="res-cta-btn" class="btn btn-primary cta-btn" href="${escapeHtml(copy.ctaUrl)}">${escapeHtml(copy.ctaButton)}</a>
+          </div>
+
           <div id="res-closing" class="closing-box"></div>
         </div>
 
         <div class="actions">
-          <button type="button" id="retake-btn" class="btn btn-secondary">Retake assessment</button>
+          <button type="button" id="retake-btn" class="btn btn-secondary">${escapeHtml(copy.retakeButton)}</button>
         </div>
       </section>
     </section>
@@ -950,6 +1155,7 @@ ${turnstileScript}
 <script>
 (() => {
   const QUIZ = ${safeJsonForHtml(clientQuizPayload)};
+  const COPY = QUIZ.copy || {};
   const PREVIEW_MODE = ${opts.previewMode ? "true" : "false"};
   const TURNSTILE_SITE_KEY = ${safeJsonForHtml(opts.turnstileSiteKey)};
   const DEFAULT_SUBMIT_ENDPOINT = ${safeJsonForHtml(opts.submitEndpoint)};
@@ -959,10 +1165,18 @@ ${turnstileScript}
   ]);
   const RING_CIRC = 314.16;
 
+  function formatCopy(template, vars) {
+    let out = String(template || "");
+    for (const [k, v] of Object.entries(vars || {})) {
+      out = out.replace(new RegExp("\\\\{" + k + "\\\\}", "g"), String(v ?? ""));
+    }
+    return out;
+  }
+
   const prefersReducedMotion = () =>
     Boolean(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
 
-  const STORAGE_KEY = "sc_quiz_v2_" + QUIZ.slug;
+  const STORAGE_KEY = "sc_quiz_v3_" + QUIZ.slug;
   const totalQuestions = QUIZ.profileQuestions.length + QUIZ.scoredQuestions.length;
 
   // Build wizard steps: profile questions, then for each area: section-intro + area questions
@@ -978,7 +1192,7 @@ ${turnstileScript}
       text: pq.label,
       options: pq.options,
       areaKey: "__profile__",
-      areaName: "About your organisation",
+      areaName: COPY.profileAreaName || "About your organization",
       indexInArea: idx + 1,
       areaTotal: QUIZ.profileQuestions.length,
       overallIndex: qOverall,
@@ -1048,6 +1262,7 @@ ${turnstileScript}
     consentAccepted: false,
     consentTimestamp: "",
     profile: {},
+    profileOther: {},
     answers: {},
     identity: {
       firstName: queryFn,
@@ -1066,7 +1281,7 @@ ${turnstileScript}
     try {
       const saved = JSON.parse(sessionStorage.getItem(STORAGE_KEY) || "null");
       if (saved && typeof saved === "object") {
-        state = { ...defaultState(), ...saved };
+        state = { ...defaultState(), ...saved, profileOther: saved.profileOther || {} };
         if (hasPrefill && !saved.clearedPrefill) {
           state.identity = {
             firstName: queryFn || state.identity.firstName,
@@ -1109,6 +1324,8 @@ ${turnstileScript}
   const questionView = document.getElementById("question-view");
   const questionLegend = document.getElementById("question-legend");
   const questionOptions = document.getElementById("question-options");
+  const qOtherWrap = document.getElementById("q-other-wrap");
+  const qOtherInput = document.getElementById("q-other-input");
   const qBackBtn = document.getElementById("q-back-btn");
 
   const identityView = document.getElementById("identity-view");
@@ -1168,20 +1385,23 @@ ${turnstileScript}
 
     if (!currentStepObj) return;
     if (currentStepObj.type === "area-intro") {
-      progressLabel.textContent =
-        currentStepObj.areaName + " \\u00b7 Area " + currentStepObj.areaIndex + " of " + currentStepObj.totalAreas;
-      progressOverall.textContent =
-        currentStepObj.overallIndex + " of " + currentStepObj.totalQuestions + " overall";
+      progressLabel.textContent = formatCopy(
+        COPY.progressAreaIntroFormat || "{areaName} \\u00b7 Area {areaIndex} of {totalAreas}",
+        currentStepObj,
+      );
+      progressOverall.textContent = formatCopy(
+        COPY.progressOverallFormat || "{overallIndex} of {totalQuestions} overall",
+        currentStepObj,
+      );
     } else {
-      progressLabel.textContent =
-        currentStepObj.areaName +
-        " \\u00b7 Question " +
-        currentStepObj.indexInArea +
-        " of " +
-        currentStepObj.areaTotal +
-        " in this area";
-      progressOverall.textContent =
-        currentStepObj.overallIndex + " of " + currentStepObj.totalQuestions + " overall";
+      progressLabel.textContent = formatCopy(
+        COPY.progressQuestionFormat || "{areaName} \\u00b7 Question {indexInArea} of {areaTotal} in this area",
+        currentStepObj,
+      );
+      progressOverall.textContent = formatCopy(
+        COPY.progressOverallFormat || "{overallIndex} of {totalQuestions} overall",
+        currentStepObj,
+      );
     }
   }
 
@@ -1272,6 +1492,16 @@ ${turnstileScript}
     });
   });
 
+  qOtherInput.addEventListener("input", () => {
+    if (state.step >= 0 && state.step < wizardSteps.length) {
+      const stepObj = wizardSteps[state.step];
+      if (stepObj && stepObj.kind === "profile") {
+        state.profileOther[stepObj.id] = qOtherInput.value.trim();
+        persist();
+      }
+    }
+  });
+
   function renderTurnstile() {
     if (PREVIEW_MODE) {
       turnstileContainer.innerHTML = "<p class=\\"hint\\">Turnstile verification skipped in Builder Live Preview.</p>";
@@ -1293,17 +1523,34 @@ ${turnstileScript}
     }
   }
 
-  function selectOptionAndAutoAdvance(stepObj, optionText, cardEl) {
+  function selectOptionAndAutoAdvance(stepObj, optObj, cardEl) {
     cancelAutoAdvance();
-    if (stepObj.kind === "profile") state.profile[stepObj.id] = optionText;
-    else state.answers[stepObj.id] = optionText;
+    const optionText = optObj.text;
+    if (stepObj.kind === "profile") {
+      state.profile[stepObj.id] = optionText;
+      if (!optObj.allowFreeText) {
+        delete state.profileOther[stepObj.id];
+      }
+    } else {
+      state.answers[stepObj.id] = optionText;
+    }
     persist();
     showError("");
 
     const allCards = questionOptions.querySelectorAll(".opt-card");
     allCards.forEach((c) => c.classList.toggle("is-selected", c === cardEl));
-    questionOptions.classList.add("is-locking");
     updateSegmentedProgress(stepObj);
+
+    if (stepObj.kind === "profile" && optObj.allowFreeText) {
+      questionOptions.classList.remove("is-locking");
+      qOtherWrap.hidden = false;
+      qOtherInput.value = state.profileOther[stepObj.id] || "";
+      qOtherInput.focus();
+      return;
+    }
+
+    qOtherWrap.hidden = true;
+    questionOptions.classList.add("is-locking");
 
     const delay = prefersReducedMotion() ? 0 : 350;
     autoAdvanceTimer = setTimeout(() => {
@@ -1392,9 +1639,9 @@ ${turnstileScript}
       consentCheckbox.checked = Boolean(state.consentAccepted);
       if (state.prefilledMode && (state.identity.firstName || state.identity.email)) {
         prefillConsentBanner.hidden = false;
-        const who = [state.identity.firstName, state.identity.lastName].filter(Boolean).join(" ");
-        prefillSummary.textContent =
-          "Completing as " + (who || state.identity.email) + (who && state.identity.email ? " (" + state.identity.email + ")" : "");
+        const namePart = [state.identity.firstName, state.identity.lastName].filter(Boolean).join(" ");
+        const who = (namePart || state.identity.email) + (namePart && state.identity.email ? " (" + state.identity.email + ")" : "");
+        prefillSummary.textContent = formatCopy(COPY.prefillCompletingAsFormat || "Completing as {who}", { who });
       } else {
         prefillConsentBanner.hidden = true;
       }
@@ -1410,8 +1657,14 @@ ${turnstileScript}
       if (stepObj.type === "area-intro") {
         sectionIntroView.hidden = false;
         applyStepTransition(sectionIntroView);
-        introKicker.textContent = "Area " + stepObj.areaIndex + " of " + stepObj.totalAreas;
-        introHeading.textContent = "Area " + stepObj.areaIndex + " of " + stepObj.totalAreas + " \\u2014 " + stepObj.areaName;
+        introKicker.textContent = formatCopy(
+          COPY.sectionIntroKickerFormat || "Area {areaIndex} of {totalAreas}",
+          stepObj,
+        );
+        introHeading.textContent = formatCopy(
+          COPY.sectionIntroHeadingFormat || "Area {areaIndex} of {totalAreas} \\u2014 {areaName}",
+          stepObj,
+        );
         introBlurb.textContent = stepObj.blurb;
         if (focusHeading) introHeading.focus();
         return;
@@ -1424,6 +1677,8 @@ ${turnstileScript}
       questionOptions.classList.remove("is-locking");
 
       const currentVal = stepObj.kind === "profile" ? state.profile[stepObj.id] : state.answers[stepObj.id];
+      let selectedOptHasFreeText = false;
+
       stepObj.options.forEach((opt, i) => {
         const letter = String.fromCharCode(65 + i);
         const label = document.createElement("label");
@@ -1441,10 +1696,13 @@ ${turnstileScript}
         if (isSelected) {
           radio.checked = true;
           label.classList.add("is-selected");
+          if (stepObj.kind === "profile" && opt.allowFreeText) {
+            selectedOptHasFreeText = true;
+          }
         }
 
         radio.addEventListener("change", () => {
-          selectOptionAndAutoAdvance(stepObj, opt.text, label);
+          selectOptionAndAutoAdvance(stepObj, opt, label);
         });
 
         const badge = document.createElement("span");
@@ -1465,6 +1723,14 @@ ${turnstileScript}
         questionOptions.append(label);
       });
 
+      if (selectedOptHasFreeText) {
+        qOtherWrap.hidden = false;
+        qOtherInput.value = state.profileOther[stepObj.id] || "";
+      } else {
+        qOtherWrap.hidden = true;
+        qOtherInput.value = "";
+      }
+
       if (focusHeading) questionLegend.focus();
       return;
     }
@@ -1472,8 +1738,11 @@ ${turnstileScript}
     if (state.step === totalWizardSteps) {
       progressContainer.hidden = false;
       updateSegmentedProgress(null);
-      progressLabel.textContent = "Final step \\u00b7 Your details";
-      progressOverall.textContent = totalQuestions + " of " + totalQuestions + " complete";
+      progressLabel.textContent = COPY.progressFinalStepLabel || "Final step \\u00b7 Your details";
+      progressOverall.textContent = formatCopy(
+        COPY.progressFinalOverallFormat || "{totalQuestions} of {totalQuestions} complete",
+        { totalQuestions },
+      );
 
       identityView.hidden = false;
       applyStepTransition(identityView);
@@ -1485,9 +1754,15 @@ ${turnstileScript}
 
       if (state.prefilledMode && state.identity.firstName && state.identity.email && state.identity.company) {
         prefillIdentityBanner.hidden = false;
-        prefillIdentityText.textContent =
-          "Submitting for " + state.identity.firstName + " " + (state.identity.lastName || "") +
-          " (" + state.identity.email + ", " + state.identity.company + ")";
+        const fullName = [state.identity.firstName, state.identity.lastName].filter(Boolean).join(" ");
+        prefillIdentityText.textContent = formatCopy(
+          COPY.prefillSubmittingForFormat || "Submitting for {name} ({email}, {company})",
+          {
+            name: fullName,
+            email: state.identity.email,
+            company: state.identity.company,
+          },
+        );
         identityFields.hidden = true;
       } else {
         prefillIdentityBanner.hidden = true;
@@ -1503,6 +1778,7 @@ ${turnstileScript}
     progressContainer.hidden = true;
     const r = state.results;
     if (r) {
+      const isBand4 = Number(r.band?.band) === 4;
       document.getElementById("res-band").textContent = r.band.label;
       const headline = (r.band.headline || "")
         .replace(/\\[X\\]/g, String(r.readinessPct))
@@ -1537,6 +1813,11 @@ ${turnstileScript}
         }
       });
 
+      const gapHeadingEl = document.getElementById("res-gap-heading");
+      gapHeadingEl.textContent = isBand4
+        ? (COPY.biggestGapHeadingBand4 || "Where to keep your edge")
+        : (COPY.biggestGapHeading || "Biggest gap");
+
       const gapsEl = document.getElementById("res-gaps");
       gapsEl.innerHTML = "";
       (r.gapCards || []).forEach((g) => {
@@ -1544,7 +1825,9 @@ ${turnstileScript}
         card.className = "gap-card";
         const badge = document.createElement("span");
         badge.className = "gap-badge";
-        badge.textContent = "Priority focus area";
+        badge.textContent = isBand4
+          ? (COPY.gapCardBadgeBand4 || "Strength to maintain")
+          : (COPY.gapCardBadge || "Priority focus area");
         const h3 = document.createElement("h3");
         h3.textContent = g.areaName + " (" + g.pct + "%) \\u2014 " + g.headline;
         const p = document.createElement("p");
@@ -1565,7 +1848,7 @@ ${turnstileScript}
   consentView.addEventListener("submit", (e) => {
     e.preventDefault();
     if (!consentCheckbox.checked) {
-      showError("Please confirm your consent before starting the assessment.");
+      showError(COPY.consentError || "Please confirm your consent before starting the assessment.");
       consentCheckbox.focus();
       return;
     }
@@ -1605,11 +1888,20 @@ ${turnstileScript}
     const stepObj = wizardSteps[state.step];
     const selected = questionView.querySelector("input[name=\\"current_q\\"]:checked");
     if (!selected) {
-      showError("Please select an option to continue.");
+      showError(COPY.questionRequiredError || "Please select an option to continue.");
       return;
     }
-    if (stepObj.kind === "profile") state.profile[stepObj.id] = selected.value;
-    else state.answers[stepObj.id] = selected.value;
+    if (stepObj.kind === "profile") {
+      state.profile[stepObj.id] = selected.value;
+      const optObj = stepObj.options.find((o) => o.text === selected.value || o.code === selected.value);
+      if (optObj && optObj.allowFreeText) {
+        state.profileOther[stepObj.id] = qOtherInput.value.trim();
+      } else {
+        delete state.profileOther[stepObj.id];
+      }
+    } else {
+      state.answers[stepObj.id] = selected.value;
+    }
     navDirection = "forward";
     state.step += 1;
     persist();
@@ -1641,7 +1933,7 @@ ${turnstileScript}
             const radio = card ? card.querySelector("input[type=\\"radio\\"]") : null;
             if (radio && card) {
               radio.checked = true;
-              selectOptionAndAutoAdvance(stepObj, stepObj.options[idx].text, card);
+              selectOptionAndAutoAdvance(stepObj, stepObj.options[idx], card);
             }
           }
         }
@@ -1716,7 +2008,7 @@ ${turnstileScript}
       }
       if (firstBad) {
         firstBad.focus();
-        showError("Please check the highlighted fields.");
+        showError(COPY.validationSummaryError || "Please check the highlighted fields.");
         return;
       }
     }
@@ -1730,12 +2022,12 @@ ${turnstileScript}
     }
 
     if (TURNSTILE_SITE_KEY && !turnstileToken) {
-      showError("Please complete the verification check before submitting.");
+      showError(COPY.turnstileRequiredError || "Please complete the verification check before submitting.");
       return;
     }
 
     submitBtn.disabled = true;
-    submitBtn.textContent = "Calculating...";
+    submitBtn.textContent = COPY.submittingButton || "Calculating...";
     showError("");
 
     try {
@@ -1753,6 +2045,7 @@ ${turnstileScript}
           company: state.identity.company,
           source: state.source,
           profile: state.profile,
+          profileOther: state.profileOther,
           answers: state.answers,
           turnstileToken: turnstileToken || "preview-bypass",
           pageUri: window.location.href,
@@ -1761,7 +2054,7 @@ ${turnstileScript}
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        showError(data.error || "Could not submit your answers. Please try again.");
+        showError(data.error || COPY.submitFailedError || "Could not submit your answers. Please try again.");
         if (window.turnstile && turnstileWidgetId !== null) {
           window.turnstile.reset(turnstileWidgetId);
           turnstileToken = "";
@@ -1774,10 +2067,10 @@ ${turnstileScript}
       persist();
       render(true);
     } catch {
-      showError("Network error while submitting. Please try again.");
+      showError(COPY.networkError || "Network error while submitting. Please try again.");
     } finally {
       submitBtn.disabled = false;
-      submitBtn.textContent = "See my results";
+      submitBtn.textContent = COPY.submitButton || "See my results";
     }
   });
 

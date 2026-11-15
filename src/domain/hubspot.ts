@@ -22,8 +22,6 @@ export interface HubSpotEnv {
   HUBSPOT_REGION?: string;
 }
 
-const HYBRID_AREA_KEYS = ["spaces", "technology", "equity", "people", "support"] as const;
-
 export function buildHubSpotFields(
   quiz: QuizDefinition,
   r: HubSpotSubmissionRecord,
@@ -50,9 +48,9 @@ export function buildHubSpotFields(
       .join(" + "),
   };
 
-  for (const key of HYBRID_AREA_KEYS) {
-    f[`hybrid_area_${key}_pct`] = String(res.areaPcts[key] ?? 0);
-    f[`hybrid_area_${key}_score`] = String(res.areaScores[key] ?? 0);
+  for (const area of quiz.areas) {
+    f[`hybrid_area_${area.key}_pct`] = String(res.areaPcts[area.key] ?? 0);
+    f[`hybrid_area_${area.key}_score`] = String(res.areaScores[area.key] ?? 0);
   }
 
   f.hybrid_total_points = String(res.totalPoints);

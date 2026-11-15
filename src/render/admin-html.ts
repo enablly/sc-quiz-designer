@@ -1399,69 +1399,75 @@ export function renderAdminBuilderHtml(): string {
           fields: [
             ["welcomeSubline", "Welcome Sub-line / Co-brand Lockup", "Steelcase and Logitech: Hybrid Meeting Readiness Assessment"],
             ["welcomeHeadline", "Welcome Headline", "How Hybrid-Ready Are Your Meetings?"],
-            ["welcomeMetaTemplate", "Welcome Meta Line (supports {areas}, {questions})", "~2 minutes · {questions} questions · See how ready your meetings are for hybrid work with this assessment."],
-            ["welcomeAreasHeading", "Welcome Areas List Heading", "Areas covered in this assessment"],
-            ["consentRequiredError", "Consent Required Error Message", "Please tick the consent box to continue."],
-            ["startButton", "Start Button Label", "Start the assessment"],
+            ["welcomeMetaLine", "Welcome Meta Line", "~2 minutes · 9 questions · See how ready your meetings are for hybrid work with this assessment."],
+            ["areasCoveredHeading", "Welcome Areas List Heading", "Areas covered"],
+            ["consentCheckboxLabel", "Consent Checkbox Label", "I have read and agree to the terms above."],
+            ["consentError", "Consent Required Error Message", "Please confirm your consent before starting the assessment."],
+            ["startButton", "Start Button Label", "Start assessment"],
           ],
         },
         {
           title: "Progress Bar & Section Intros",
           fields: [
-            ["progressProfileLabel", "Profile Progress Label (supports {current}, {total})", "About you · Question {current} of {total}"],
-            ["progressQuestionTemplate", "Scored Question Progress Label (supports {area}, {areaIndex}, {areaTotal}, {overallIndex}, {overallTotal})", "{area} · Question {areaIndex} of {areaTotal} in this area · {overallIndex} of {overallTotal} overall"],
-            ["sectionIntroEyebrowTemplate", "Section Intro Eyebrow (supports {index}, {total})", "Area {index} of {total}"],
-            ["sectionIntroDefaultBlurb", "Default Section Intro Blurb", "Let's look at how your spaces and habits perform in this area."],
-            ["sectionIntroContinueButton", "Section Intro Continue Button", "Continue"],
-            ["backButton", "Back Button Label", "← Back"],
+            ["profileAreaName", "Profile Section Name", "About your organization"],
+            ["progressAreaIntroFormat", "Section Intro Progress Format (supports {areaName}, {areaIndex}, {totalAreas})", "{areaName} · Area {areaIndex} of {totalAreas}"],
+            ["progressQuestionFormat", "Question Progress Format (supports {areaName}, {indexInArea}, {areaTotal})", "{areaName} · Question {indexInArea} of {areaTotal} in this area"],
+            ["progressOverallFormat", "Overall Progress Format (supports {overallIndex}, {totalQuestions})", "{overallIndex} of {totalQuestions} overall"],
+            ["sectionIntroKickerFormat", "Section Intro Eyebrow (supports {areaIndex}, {totalAreas})", "Area {areaIndex} of {totalAreas}"],
+            ["sectionIntroHeadingFormat", "Section Intro Heading (supports {areaIndex}, {totalAreas}, {areaName})", "Area {areaIndex} of {totalAreas} — {areaName}"],
+            ["continueButton", "Section Intro Continue Button", "Continue"],
+            ["backButton", "Back Button Label", "Back"],
+            ["nextButton", "Next Button Label", "Next"],
           ],
         },
         {
           title: "Questions & 'Other' Free-Text Input",
           fields: [
-            ["profileQuestionEyebrowTemplate", "Profile Question Eyebrow (supports {current}, {total})", "Profile · {current} of {total}"],
-            ["scoredQuestionEyebrowTemplate", "Scored Question Eyebrow (supports {area}, {current}, {total})", "{area} · {current} of {total}"],
-            ["keyboardHint", "Desktop Keyboard Hint", "Tip: press A–D to select, Enter to continue"],
-            ["otherSpecifyLabel", "'Other' Free-Text Input Label", "Please specify (optional)"],
+            ["keyboardHint", "Desktop Keyboard Hint", "Tip: Press A–D to select, or Enter to continue."],
+            ["questionRequiredError", "Question Required Error Message", "Please select an option to continue."],
+            ["otherSpecifyLabel", "'Other' Free-Text Input Label", "Please specify"],
             ["otherSpecifyPlaceholder", "'Other' Free-Text Input Placeholder", "Type your answer..."],
           ],
         },
         {
           title: "Lead-Capture Step & Form Validation",
           fields: [
-            ["leadEyebrow", "Lead Step Eyebrow", "Last step"],
-            ["leadHeading", "Lead Step Heading", "Where should we send your results?"],
-            ["leadSubheading", "Lead Step Subheading", "Your readiness score and biggest gap will appear on the next screen immediately."],
+            ["progressFinalStepLabel", "Lead Step Progress Label", "Final step · Your details"],
+            ["progressFinalOverallFormat", "Lead Step Overall Progress Format", "{totalQuestions} of {totalQuestions} complete"],
+            ["identityHeading", "Lead Step Heading", "Where should we send your report?"],
+            ["identitySubtitle", "Lead Step Subtitle", "Enter your details to unlock your readiness breakdown."],
             ["firstNameLabel", "First Name Label", "First name"],
             ["firstNameError", "First Name Error Message", "Please enter your first name."],
             ["lastNameLabel", "Last Name Label", "Last name"],
-            ["lastNameError", "Last Name Error Message", "Please enter your last name."],
             ["emailLabel", "Work Email Label", "Work email"],
-            ["emailError", "Work Email Error Message", "Please enter a valid work email address."],
+            ["emailHint", "Work Email Hint", "Format: name@company.com"],
+            ["emailError", "Work Email Error Message", "Enter a valid email address like name@company.com."],
+            ["freeEmailWarning", "Free Email Soft Warning", "Heads up: it looks like a personal email address. Using your work email ensures your team report routes properly, though you can still submit with this address."],
             ["companyLabel", "Company Label", "Company"],
             ["companyError", "Company Error Message", "Please enter your company name."],
-            ["jobTitleLabel", "Job Title Label", "Job title"],
-            ["jobTitleOptionalText", "Job Title Optional Suffix", "(optional)"],
             ["submitButton", "Submit Button Label", "See my results"],
-            ["submittingButton", "Submitting Button Label (in progress)", "Calculating your results…"],
-            ["turnstileError", "Turnstile Error Message", "Please complete the verification check before submitting."],
-            ["networkError", "Network Error Message", "Network error while submitting. Please check your connection and try again."],
+            ["submittingButton", "Submitting Button Label (in progress)", "Calculating..."],
+            ["validationSummaryError", "Validation Summary Error", "Please check the highlighted fields."],
+            ["turnstileRequiredError", "Turnstile Error Message", "Please complete the verification check before submitting."],
+            ["submitFailedError", "Submit Failed Error Message", "Could not submit your answers. Please try again."],
+            ["networkError", "Network Error Message", "Network error while submitting. Please try again."],
           ],
         },
         {
           title: "Results Screen & 'Speak to us' CTA Card",
           fields: [
-            ["resultsReadinessLabel", "Score Ring Sub-label", "Readiness"],
-            ["resultsBreakdownHeading", "Area Breakdown Heading", "Breakdown by area"],
-            ["resultsGapHeadingSingular", "Gap Section Heading (Singular, Bands 1–3)", "Your biggest gap"],
-            ["resultsGapHeadingPlural", "Gap Section Heading (Tied/Plural, Bands 1–3)", "Your biggest gaps"],
-            ["resultsGapBadgeText", "Gap Card Badge Text (Bands 1–3)", "Priority focus area"],
-            ["resultsBand4GapHeading", "Band 4 Section Heading", "Where to keep your edge"],
-            ["resultsBand4BadgeText", "Band 4 Card Badge Text", "Strength to maintain"],
+            ["resultsHeading", "Results Screen Heading", "Your readiness results"],
+            ["scoresByAreaHeading", "Area Breakdown Heading", "Scores by area"],
+            ["biggestGapHeading", "Gap Section Heading (Bands 1–3)", "Biggest gap"],
+            ["biggestGapHeadingBand4", "Band 4 Section Heading", "Where to keep your edge"],
+            ["gapCardBadge", "Gap Card Badge Text (Bands 1–3)", "Priority focus area"],
+            ["gapCardBadgeBand4", "Band 4 Card Badge Text", "Strength to maintain"],
             ["ctaHeading", "CTA Card Heading", "Want to talk it through?"],
-            ["ctaBody", "CTA Card Body", "Book a short call with a Steelcase workplace specialist about your biggest gap."],
+            ["ctaBody", "CTA Card Body (Bands 1–3)", "Book a short call with a Steelcase workplace specialist about your biggest gap."],
+            ["ctaBodyBand4", "CTA Card Body (Band 4)", "Book a short call with a Steelcase workplace specialist about keeping your meetings working as your teams change."],
             ["ctaButton", "CTA Button Label", "Speak to us"],
             ["ctaUrl", "CTA Destination URL", "#"],
+            ["retakeButton", "Retake Button Label", "Retake assessment"],
           ],
         },
       ];
@@ -1695,13 +1701,24 @@ export function renderAdminBuilderHtml(): string {
         gapT.value = draft.scoring.gapCopy[area.key].tip || "";
         gapT.oninput = () => { draft.scoring.gapCopy[area.key].tip = gapT.value; schedulePreview(); };
 
+        const gapB4H = document.createElement("input");
+        gapB4H.type = "text"; gapB4H.value = draft.scoring.gapCopy[area.key].band4Headline || "";
+        gapB4H.placeholder = "Strength-framed headline shown at Band 4";
+        gapB4H.oninput = () => { draft.scoring.gapCopy[area.key].band4Headline = gapB4H.value; schedulePreview(); };
+        const gapB4T = document.createElement("textarea");
+        gapB4T.value = draft.scoring.gapCopy[area.key].band4Tip || "";
+        gapB4T.placeholder = "Strength-framed copy shown at Band 4";
+        gapB4T.oninput = () => { draft.scoring.gapCopy[area.key].band4Tip = gapB4T.value; schedulePreview(); };
+
         box.append(
           head,
           makeField("Area Key", keyIn),
           makeField("Display Name", nameIn),
           makeField("Section Intro Blurb (optional)", blurbIn),
-          makeField("Gap Card Headline", gapH),
-          makeField("Gap Card Tip", gapT),
+          makeField("Gap Card Headline (Bands 1–3)", gapH),
+          makeField("Gap Card Copy / Tip (Bands 1–3)", gapT),
+          makeField("Band 4 Strength Headline", gapB4H),
+          makeField("Band 4 Strength Copy / Tip", gapB4T),
         );
         p.append(box);
       });
@@ -1941,6 +1958,14 @@ export function renderAdminBuilderHtml(): string {
       const postIn = document.createElement("textarea"); postIn.value = draft.closing.postEvent || "";
       postIn.oninput = () => { draft.closing.postEvent = postIn.value; schedulePreview(); };
 
+      const preB4In = document.createElement("textarea"); preB4In.value = draft.closing.preEventBand4 || "";
+      preB4In.placeholder = "Strength-framed pre-event closing line shown at Band 4";
+      preB4In.oninput = () => { draft.closing.preEventBand4 = preB4In.value; schedulePreview(); };
+
+      const postB4In = document.createElement("textarea"); postB4In.value = draft.closing.postEventBand4 || "";
+      postB4In.placeholder = "Strength-framed post-event (on-demand) closing line shown at Band 4";
+      postB4In.oninput = () => { draft.closing.postEventBand4 = postB4In.value; schedulePreview(); };
+
       const hsIn = document.createElement("input"); hsIn.type = "text"; hsIn.value = draft.integration?.hubspot?.mappingStyle || "hybrid-2026";
       hsIn.oninput = () => { draft.integration.hubspot.mappingStyle = hsIn.value; };
 
@@ -1952,8 +1977,10 @@ export function renderAdminBuilderHtml(): string {
 
       p.append(
         makeField("Live Phase", phaseSel),
-        makeField("Pre-Event Closing Line", preIn),
-        makeField("Post-Event Closing Line", postIn),
+        makeField("Pre-Event Closing Line (Bands 1–3)", preIn),
+        makeField("Post-Event Closing Line (Bands 1–3)", postIn),
+        makeField("Pre-Event Closing Line (Band 4)", preB4In),
+        makeField("Post-Event Closing Line (Band 4)", postB4In),
         makeField("HubSpot Mapping Style", hsIn),
         gemWrap,
       );

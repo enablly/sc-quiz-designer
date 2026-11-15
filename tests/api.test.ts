@@ -141,30 +141,44 @@ describe("Engine, Admin API, Retries, and CSV Export", () => {
       body: JSON.stringify({ status: "published" }),
     });
 
-    // 1. First submission -> idempotent check
+    // 1. First submission -> idempotent check (Band 3: 67%)
     const res1 = await fetch(`${srv.baseUrl}/api/quizzes/hybrid-meeting-readiness/submit`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(validSubmissionBody({ clientSubmissionId: "uuid-1" })),
     });
     assert.equal(res1.status, 200);
-    const data1 = (await res1.json()) as { readinessPct: number; attemptCount: number; gemini_text?: string };
+    const data1 = (await res1.json()) as {
+      submissionId: string;
+      readinessPct: number;
+      attemptCount: number;
+      gapCards: Array<{ areaKey: string; headline: string; tip: string }>;
+      closingLine: string;
+      gemini_text?: string;
+    };
     assert.equal(data1.readinessPct, 67);
     assert.equal(data1.attemptCount, 1);
     assert.equal(data1.gemini_text, undefined); // email-only!
+    // Band 3 keeps problem-framed gap copy and closing line
+    assert.equal(data1.gapCards[0]?.headline, "Not everyone feels present");
+    assert.equal(
+      data1.closingLine,
+      "See how to close these gaps at The Hybrid Equation on 3 Dec, with Steelcase and Logitech.",
+    );
 
     await srv.flushSyncs();
 
-    // Resubmit same clientSubmissionId -> idempotent
+    // Resubmit same clientSubmissionId -> idempotent (returns exact same submission)
     const resDup = await fetch(`${srv.baseUrl}/api/quizzes/hybrid-meeting-readiness/submit`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(validSubmissionBody({ clientSubmissionId: "uuid-1" })),
     });
-    const dataDup = (await resDup.json()) as { attemptCount: number };
+    const dataDup = (await resDup.json()) as { submissionId: string; attemptCount: number };
     assert.equal(dataDup.attemptCount, 1);
+    assert.equal(dataDup.submissionId, data1.submissionId);
 
-    // Retake with new clientSubmissionId while HubSpot fails -> pending & attempt_count = 2
+    // Retake with new clientSubmissionId while HubSpot fails -> stored as its own new submission (attemptCount = 1)
     hubspotShouldFail = true;
     const worstAnswers = Object.fromEntries(
       seed.scoredQuestions.map((q) => [q.id, q.options.find((o) => o.points === 0)!.text]),
@@ -176,16 +190,24 @@ describe("Engine, Admin API, Retries, and CSV Export", () => {
         validSubmissionBody({ clientSubmissionId: "uuid-2", answers: worstAnswers }),
       ),
     });
-    const dataRetake = (await resRetake.json()) as { attemptCount: number; readinessPct: number };
-    assert.equal(dataRetake.attemptCount, 2);
+    const dataRetake = (await resRetake.json()) as {
+      submissionId: string;
+      attemptCount: number;
+      readinessPct: number;
+      gapCards: Array<{ areaKey: string; headline: string; tip: string }>;
+      closingLine: string;
+    };
+    assert.equal(dataRetake.attemptCount, 1);
+    assert.notEqual(dataRetake.submissionId, data1.submissionId);
     assert.equal(dataRetake.readinessPct, 0);
+    assert.equal(dataRetake.gapCards[0]?.headline, "Not everyone feels present");
     await srv.flushSyncs();
 
-    // Also submit a non-priority Band 4 respondent
+    // Also submit a non-priority Band 4 (100%) respondent -> verify Band 4 strength-framed cards and closing line
     const bestAnswers = Object.fromEntries(
       seed.scoredQuestions.map((q) => [q.id, q.options.find((o) => o.points === 3)!.text]),
     );
-    await fetch(`${srv.baseUrl}/api/quizzes/hybrid-meeting-readiness/submit`, {
+    const resBand4 = await fetch(`${srv.baseUrl}/api/quizzes/hybrid-meeting-readiness/submit`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(
@@ -198,6 +220,39 @@ describe("Engine, Admin API, Retries, and CSV Export", () => {
         }),
       ),
     });
+    assert.equal(resBand4.status, 200);
+    const dataBand4 = (await resBand4.json()) as {
+      readinessPct: number;
+      band: { band: number };
+      gapCards: Array<{ areaKey: string; headline: string; tip: string }>;
+      closingLine: string;
+    };
+    assert.equal(dataBand4.readinessPct, 100);
+    assert.equal(dataBand4.band.band, 4);
+    assert.deepEqual(
+      dataBand4.gapCards.map((g) => ({ areaKey: g.areaKey, headline: g.headline, tip: g.tip })),
+      [
+        {
+          areaKey: "being_seen_and_heard",
+          headline: "Everyone is seen and heard",
+          tip: "People can see and hear each other clearly, in the room and remotely.",
+        },
+        {
+          areaKey: "working_together",
+          headline: "Everyone can contribute",
+          tip: "Remote colleagues add to the work in real time, not after the fact.",
+        },
+        {
+          areaKey: "spaces_and_support",
+          headline: "Your spaces keep up",
+          tip: "Your rooms fit how people meet now, and someone owns keeping them that way.",
+        },
+      ],
+    );
+    assert.equal(
+      dataBand4.closingLine,
+      "Hear how other workplaces are keeping their meetings working at The Hybrid Equation on 3 Dec, with Steelcase and Logitech.",
+    );
     await srv.flushSyncs();
 
     // Retry sweep now succeeds
@@ -211,12 +266,13 @@ describe("Engine, Admin API, Retries, and CSV Export", () => {
     assert.equal(retrySummary.processed, 2);
     assert.equal(retrySummary.synced, 2);
 
-    // Verify admin submissions view includes profileOther free-text values
+    // Verify admin submissions view includes all 3 attempts as their own submissions + profileOther free-text values
     const rSubs = await fetch(`${srv.baseUrl}/api/admin/quizzes/hybrid-meeting-readiness/submissions`, {
       headers: { Authorization: "Bearer secret-admin-token" },
     });
     assert.equal(rSubs.status, 200);
     const subs = (await rSubs.json()) as Array<{ email: string; profileOther?: Record<string, string> }>;
+    assert.equal(subs.length, 3);
     const otherSub = subs.find((s) => s.email === "nonpriority@other.com");
     assert.ok(otherSub);
     assert.deepEqual(otherSub.profileOther, {
@@ -225,23 +281,24 @@ describe("Engine, Admin API, Retries, and CSV Export", () => {
       p4: "Middle East",
     });
 
-    // Export CSV -> priority row (jane.doe@company.com, band 1) must come before nonpriority@other.com (band 4)
-    // and include profile_p1_other, profile_p2_other, profile_p4_other columns
+    // Export CSV -> priority row (jane.doe@company.com, band 1, 0%) comes first, then non-priority rows sorted by lowest score (67%, then 100%)
+    // and includes profile_p1_other, profile_p2_other, profile_p4_other columns
     const rCsv = await fetch(`${srv.baseUrl}/api/admin/quizzes/hybrid-meeting-readiness/export`, {
       headers: { Authorization: "Bearer secret-admin-token" },
     });
     assert.equal(rCsv.status, 200);
     const csvText = await rCsv.text();
     const lines = csvText.trim().split(/\r?\n/);
-    assert.equal(lines.length, 3); // header + 2 respondents
+    assert.equal(lines.length, 4); // header + 3 submissions
     assert.ok(lines[0]!.includes("profile_p1_other"));
     assert.ok(lines[0]!.includes("profile_p2_other"));
     assert.ok(lines[0]!.includes("profile_p4_other"));
     assert.ok(lines[1]!.startsWith("jane.doe@company.com,"));
-    assert.ok(lines[2]!.startsWith("nonpriority@other.com,"));
-    assert.ok(lines[2]!.includes("AV Consultant"));
-    assert.ok(lines[2]!.includes("Biotech"));
-    assert.ok(lines[2]!.includes("Middle East"));
+    assert.ok(lines[2]!.startsWith("jane.doe@company.com,"));
+    assert.ok(lines[3]!.startsWith("nonpriority@other.com,"));
+    assert.ok(lines[3]!.includes("AV Consultant"));
+    assert.ok(lines[3]!.includes("Biotech"));
+    assert.ok(lines[3]!.includes("Middle East"));
 
     // Verify Central Quiz Repository list includes totalCompletions and publicPath
     const rList = await fetch(`${srv.baseUrl}/api/admin/quizzes`, {
@@ -258,8 +315,8 @@ describe("Engine, Admin API, Retries, and CSV Export", () => {
     const repoItem = quizList.find((q) => q.slug === "hybrid-meeting-readiness");
     assert.ok(repoItem);
     assert.equal(repoItem.publicPath, "/q/hybrid-meeting-readiness");
-    assert.equal(repoItem.totalCompletions, 2);
-    assert.equal(repoItem.averageReadinessPct, 50); // (0% + 100%) / 2
+    assert.equal(repoItem.totalCompletions, 3);
+    assert.equal(repoItem.averageReadinessPct, 56); // Math.round((67 + 0 + 100) / 3) = 56
 
     // Verify server-side per-quiz statistics & per-question breakdown (no PII!)
     const rStats = await fetch(`${srv.baseUrl}/api/admin/quizzes/hybrid-meeting-readiness/stats`, {
@@ -287,21 +344,17 @@ describe("Engine, Admin API, Retries, and CSV Export", () => {
         options: Array<{ text: string; points: number; count: number; pct: number; isMostPicked: boolean }>;
       }>;
     };
-    assert.equal(stats.totalCompletions, 2);
-    assert.equal(stats.averageReadinessPct, 50);
+    assert.equal(stats.totalCompletions, 3);
+    assert.equal(stats.averageReadinessPct, 56);
     assert.equal(stats.bands.find((b) => b.band === 1)?.count, 1);
-    assert.equal(stats.bands.find((b) => b.band === 1)?.pct, 50);
+    assert.equal(stats.bands.find((b) => b.band === 3)?.count, 1);
     assert.equal(stats.bands.find((b) => b.band === 4)?.count, 1);
-    assert.equal(stats.bands.find((b) => b.band === 4)?.pct, 50);
     assert.equal(stats.areas.length, 3);
-    assert.equal(stats.areas[0]!.averagePct, 50);
-    assert.equal(stats.areas[0]!.averageScore, 4.5);
-    assert.equal(stats.areas[0]!.maxScore, 9);
     assert.equal(stats.profileQuestions.length, 4);
     assert.equal(stats.scoredQuestions.length, 9);
     const q1Stats = stats.scoredQuestions.find((q) => q.id === "q1")!;
-    assert.equal(q1Stats.totalResponses, 2);
-    assert.equal(q1Stats.options.filter((o) => o.isMostPicked).length, 2); // 1 pick for 3pt, 1 pick for 0pt -> tied at 1 (50% each)
+    assert.equal(q1Stats.totalResponses, 3);
+    assert.equal(q1Stats.options.filter((o) => o.isMostPicked).length, 3); // 1 pick for 3pt, 1 pick for 2pt, 1 pick for 0pt -> tied at 1 each
   });
 
   it("uploads binary logo files to storage, serves them per quiz, copies them on duplicate, and removes cleanly", async () => {

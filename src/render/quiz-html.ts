@@ -149,11 +149,16 @@ export function renderQuizHtml(
         ...(opts.previewMode ? { points: o.points } : {}),
       })),
     })),
-    ...(opts.previewMode ? { scoring: quiz.scoring } : {}),
+    scoring: {
+      gapCopy: quiz.scoring.gapCopy,
+      ...(opts.previewMode ? quiz.scoring : {}),
+    },
     closing: {
       livePhase: quiz.closing.livePhase === "post" ? "post" : "pre",
       preEvent: quiz.closing.preEvent,
       postEvent: quiz.closing.postEvent,
+      ...(quiz.closing.preEventBand4 ? { preEventBand4: quiz.closing.preEventBand4 } : {}),
+      ...(quiz.closing.postEventBand4 ? { postEventBand4: quiz.closing.postEventBand4 } : {}),
     },
   };
 
@@ -1266,26 +1271,13 @@ ${turnstileScript}
   let state = defaultState();
   if (!PREVIEW_MODE) {
     try {
-      const saved = JSON.parse(sessionStorage.getItem(STORAGE_KEY) || "null");
-      if (saved && typeof saved === "object") {
-        state = { ...defaultState(), ...saved, profileOther: saved.profileOther || {} };
-        if (hasPrefill && !saved.clearedPrefill) {
-          state.identity = {
-            firstName: queryFn || state.identity.firstName,
-            lastName: queryLn || state.identity.lastName,
-            email: queryEm || state.identity.email,
-            company: queryCo || state.identity.company,
-          };
-          if (querySrc) state.source = querySrc;
-          state.prefilledMode = true;
-        }
-      }
+      sessionStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(STORAGE_KEY);
     } catch {}
   }
 
   function persist() {
-    if (PREVIEW_MODE) return;
-    try { sessionStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch {}
+    // Intentionally do not persist answers/results across reloads so reloading or retaking starts a fresh attempt.
   }
 
   // DOM refs
@@ -1808,6 +1800,14 @@ ${turnstileScript}
       const gapsEl = document.getElementById("res-gaps");
       gapsEl.innerHTML = "";
       (r.gapCards || []).forEach((g) => {
+        const areaGapCopy = (QUIZ.scoring && QUIZ.scoring.gapCopy && QUIZ.scoring.gapCopy[g.areaKey]) || {};
+        const cardHeadline = isBand4
+          ? (areaGapCopy.band4Headline || g.headline || areaGapCopy.headline || g.areaKey)
+          : (g.headline || areaGapCopy.headline || g.areaKey);
+        const cardTip = isBand4
+          ? (areaGapCopy.band4Tip || g.tip || areaGapCopy.tip || "")
+          : (g.tip || areaGapCopy.tip || "");
+
         const card = document.createElement("div");
         card.className = "gap-card";
         const badge = document.createElement("span");
@@ -1816,15 +1816,25 @@ ${turnstileScript}
           ? (COPY.gapCardBadgeBand4 || "Strength to maintain")
           : (COPY.gapCardBadge || "Priority focus area");
         const h3 = document.createElement("h3");
-        h3.textContent = g.areaName + " (" + g.pct + "%) \\u2014 " + g.headline;
+        h3.textContent = g.areaName + " (" + g.pct + "%) \\u2014 " + cardHeadline;
         const p = document.createElement("p");
         p.style.margin = "0";
-        p.textContent = g.tip;
+        p.textContent = cardTip;
         card.append(badge, h3, p);
         gapsEl.append(card);
       });
 
-      document.getElementById("res-closing").textContent = r.closingLine || "";
+      const ctaBodyEl = document.getElementById("res-cta-body");
+      if (ctaBodyEl) {
+        ctaBodyEl.textContent = isBand4
+          ? (COPY.ctaBodyBand4 || COPY.ctaBody || "")
+          : (COPY.ctaBody || "");
+      }
+
+      const fallbackClosing = (QUIZ.closing && QUIZ.closing.livePhase === "post")
+        ? (isBand4 && QUIZ.closing.postEventBand4 ? QUIZ.closing.postEventBand4 : QUIZ.closing.postEvent)
+        : (isBand4 && QUIZ.closing && QUIZ.closing.preEventBand4 ? QUIZ.closing.preEventBand4 : (QUIZ.closing && QUIZ.closing.preEvent));
+      document.getElementById("res-closing").textContent = r.closingLine || fallbackClosing || "";
       animateResultsReveal(r);
     }
     resultsView.hidden = false;
@@ -1959,19 +1969,27 @@ ${turnstileScript}
     const minPct = Math.min(...QUIZ.areas.map((a) => areaPcts[a.key]));
     const biggestGap = QUIZ.areas.filter((a) => areaPcts[a.key] === minPct).map((a) => a.key);
     const band = (QUIZ.scoring.bands || []).find((b) => readinessPct >= b.min && readinessPct <= b.max) || { band: 1, label: "Result", headline: "You're at [X]%.", body: "" };
+    const isBand4 = Number(band.band) === 4;
     const gapCopy = QUIZ.scoring.gapCopy || {};
+    const isPost = QUIZ.closing && QUIZ.closing.livePhase === "post";
+    const closingLine = isPost
+      ? (isBand4 && QUIZ.closing.postEventBand4 ? QUIZ.closing.postEventBand4 : QUIZ.closing.postEvent)
+      : (isBand4 && QUIZ.closing.preEventBand4 ? QUIZ.closing.preEventBand4 : QUIZ.closing.preEvent);
     return {
       readinessPct,
       band,
       areaPcts,
-      gapCards: biggestGap.map((k) => ({
-        areaKey: k,
-        areaName: (QUIZ.areas.find((a) => a.key === k) || {}).name || k,
-        pct: areaPcts[k],
-        headline: (gapCopy[k] || {}).headline || k,
-        tip: (gapCopy[k] || {}).tip || "",
-      })),
-      closingLine: QUIZ.closing.livePhase === "post" ? QUIZ.closing.postEvent : QUIZ.closing.preEvent,
+      gapCards: biggestGap.map((k) => {
+        const gc = gapCopy[k] || {};
+        return {
+          areaKey: k,
+          areaName: (QUIZ.areas.find((a) => a.key === k) || {}).name || k,
+          pct: areaPcts[k],
+          headline: (isBand4 && gc.band4Headline) ? gc.band4Headline : (gc.headline || k),
+          tip: (isBand4 && gc.band4Tip) ? gc.band4Tip : (gc.tip || ""),
+        };
+      }),
+      closingLine,
     };
   }
 
@@ -2061,16 +2079,37 @@ ${turnstileScript}
     }
   });
 
-  document.getElementById("retake-btn").addEventListener("click", () => {
-    navDirection = "back";
-    state.step = 0;
-    state.results = null;
-    state.clientSubmissionId = makeUuid();
+  function resetForFreshAttempt() {
+    cancelAutoAdvance();
+    cancelResultsAnimation();
+    try {
+      sessionStorage.removeItem(STORAGE_KEY);
+      localStorage.removeItem(STORAGE_KEY);
+    } catch {}
+    state = defaultState();
+    consentCheckbox.checked = false;
+    qOtherWrap.hidden = true;
+    qOtherInput.value = "";
+    fnInput.value = state.identity.firstName || "";
+    lnInput.value = state.identity.lastName || "";
+    emInput.value = state.identity.email || "";
+    coInput.value = state.identity.company || "";
+    freeEmailWarn.hidden = true;
+    [fnInput, emInput, coInput].forEach((el) => {
+      el.classList.remove("user-invalid-fallback");
+      el.setAttribute("aria-invalid", "false");
+      linkError(el, false);
+    });
     turnstileToken = "";
     if (window.turnstile && turnstileWidgetId !== null) {
       window.turnstile.reset(turnstileWidgetId);
     }
-    persist();
+    updateSegmentedProgress(null);
+  }
+
+  document.getElementById("retake-btn").addEventListener("click", () => {
+    navDirection = "back";
+    resetForFreshAttempt();
     render(true);
   });
 

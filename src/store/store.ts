@@ -5,8 +5,8 @@ import type {
   SyncLogEntry,
 } from "../types.js";
 
-export function submissionDocId(slug: string, email: string): string {
-  return `${slug}__${encodeURIComponent(email.trim().toLowerCase())}`;
+export function submissionDocId(slug: string, clientSubmissionId: string): string {
+  return `${slug}__${encodeURIComponent(clientSubmissionId.trim())}`;
 }
 
 export interface QuizStore {

@@ -108,6 +108,8 @@ export const DEFAULT_PAGE_COPY: QuizPageCopy = {
   ctaHeading: "Want to talk it through?",
   ctaBody:
     "Book a short call with a Steelcase workplace specialist about your biggest gap.",
+  ctaBodyBand4:
+    "Book a short call with a Steelcase workplace specialist about keeping your meetings working as your teams change.",
   ctaButton: "Speak to us",
   ctaUrl: "#",
   retakeButton: "Retake assessment",
@@ -181,6 +183,7 @@ export function resolvePageCopy(quiz: Partial<QuizDefinition>): QuizPageCopy {
     gapCardBadgeBand4: pick("gapCardBadgeBand4"),
     ctaHeading: pick("ctaHeading"),
     ctaBody: pick("ctaBody"),
+    ctaBodyBand4: pick("ctaBodyBand4"),
     ctaButton: pick("ctaButton"),
     ctaUrl: pick("ctaUrl"),
     retakeButton: pick("retakeButton"),
@@ -291,11 +294,18 @@ export function normalizeQuizDefinition(input: QuizDefinition): QuizDefinition {
       }))
     : [];
   const rawGapCopy = clone.scoring?.gapCopy ?? {};
-  const cleanedGapCopy: Record<string, { headline: string; tip: string }> = {};
+  const cleanedGapCopy: Record<
+    string,
+    { headline: string; tip: string; band4Headline?: string; band4Tip?: string }
+  > = {};
   for (const [k, v] of Object.entries(rawGapCopy)) {
+    const b4h = cleanStr(v?.band4Headline);
+    const b4t = cleanStr(v?.band4Tip);
     cleanedGapCopy[cleanStr(k)] = {
       headline: cleanStr(v?.headline),
       tip: cleanStr(v?.tip),
+      ...(b4h ? { band4Headline: b4h } : {}),
+      ...(b4t ? { band4Tip: b4t } : {}),
     };
   }
   const rawFallbacks = clone.scoring?.fallbackParagraphs ?? {};
@@ -322,10 +332,14 @@ export function normalizeQuizDefinition(input: QuizDefinition): QuizDefinition {
         : [],
     },
   };
+  const preB4 = cleanStr(clone.closing?.preEventBand4);
+  const postB4 = cleanStr(clone.closing?.postEventBand4);
   clone.closing = {
     livePhase: clone.closing?.livePhase === "post" ? "post" : "pre",
     preEvent: cleanStr(clone.closing?.preEvent),
     postEvent: cleanStr(clone.closing?.postEvent),
+    ...(preB4 ? { preEventBand4: preB4 } : {}),
+    ...(postB4 ? { postEventBand4: postB4 } : {}),
   };
   clone.integration = {
     hubspot: {

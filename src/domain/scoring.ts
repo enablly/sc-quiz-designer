@@ -95,12 +95,22 @@ export function scoreAnswers(
     .filter((a) => (areaPcts[a.key] ?? 0) === minAreaPct)
     .map((a) => a.key);
 
+  const band = bandForPct(quiz, readinessPct);
+  const isBand4 = band.band === 4;
   const gapCopy = quiz.scoring.gapCopy ?? {};
   const gapHeadline = biggestGap
-    .map((k) => gapCopy[k]?.headline ?? k)
+    .map((k) =>
+      isBand4 && gapCopy[k]?.band4Headline
+        ? gapCopy[k]!.band4Headline!
+        : (gapCopy[k]?.headline ?? k),
+    )
     .join(" + ");
   const gapTip = biggestGap
-    .map((k) => gapCopy[k]?.tip ?? "")
+    .map((k) =>
+      isBand4 && gapCopy[k]?.band4Tip
+        ? gapCopy[k]!.band4Tip!
+        : (gapCopy[k]?.tip ?? ""),
+    )
     .filter(Boolean)
     .join(" ");
 
@@ -112,7 +122,7 @@ export function scoreAnswers(
     totalPoints,
     maxPoints,
     readinessPct,
-    band: bandForPct(quiz, readinessPct),
+    band,
     biggestGap,
     gapHeadline,
     gapTip,

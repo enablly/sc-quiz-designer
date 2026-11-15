@@ -212,4 +212,42 @@ describe("Acceptance Test 5: Standalone HTML export & Design upgrade", () => {
       assert.doesNotThrow(() => new vm.Script(match[1]!));
     }
   });
+
+  it("includes Band 4 strength-framed copy variants and fresh-attempt retake reset to welcome/consent", () => {
+    const html = renderQuizHtml(seed, {
+      turnstileSiteKey: "0x4AAAAAAA_test_key",
+      submitEndpoint: "/api/quizzes/hybrid-meeting-readiness/submit",
+      previewMode: false,
+      standalone: false,
+    });
+
+    // Band 4 strength-framed area copy, CTA body, and closing lines are embedded in QUIZ payload
+    assert.ok(html.includes("Everyone is seen and heard"));
+    assert.ok(html.includes("People can see and hear each other clearly, in the room and remotely."));
+    assert.ok(html.includes("Everyone can contribute"));
+    assert.ok(html.includes("Remote colleagues add to the work in real time, not after the fact."));
+    assert.ok(html.includes("Your spaces keep up"));
+    assert.ok(html.includes("Your rooms fit how people meet now, and someone owns keeping them that way."));
+    assert.ok(
+      html.includes(
+        "Book a short call with a Steelcase workplace specialist about keeping your meetings working as your teams change.",
+      ),
+    );
+    assert.ok(
+      html.includes(
+        "Hear how other workplaces are keeping their meetings working at The Hybrid Equation on 3 Dec, with Steelcase and Logitech.",
+      ),
+    );
+    assert.ok(
+      html.includes(
+        "Watch The Hybrid Equation on demand and hear how other workplaces are keeping their meetings working, with Steelcase and Logitech.",
+      ),
+    );
+
+    // Retake resets to defaultState (step: -1 = welcome/consent, consentAccepted: false, empty profile/answers)
+    assert.ok(html.includes("function resetForFreshAttempt()"));
+    assert.ok(html.includes("state = defaultState();"));
+    assert.ok(html.includes("consentCheckbox.checked = false;"));
+    assert.ok(html.includes("sessionStorage.removeItem(STORAGE_KEY);"));
+  });
 });

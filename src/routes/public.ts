@@ -20,10 +20,15 @@ export function buildPublicResultsPayload(
 ) {
   const areaNameByKey = new Map(quiz.areas.map((a) => [a.key, a.name]));
   const gapCopy = quiz.scoring.gapCopy ?? {};
-  const closingLine =
-    quiz.closing.livePhase === "post"
-      ? quiz.closing.postEvent
-      : quiz.closing.preEvent;
+  const isBand4 = r.band.band === 4;
+  const isPost = quiz.closing.livePhase === "post";
+  const closingLine = isPost
+    ? (isBand4 && quiz.closing.postEventBand4
+        ? quiz.closing.postEventBand4
+        : quiz.closing.postEvent)
+    : (isBand4 && quiz.closing.preEventBand4
+        ? quiz.closing.preEventBand4
+        : quiz.closing.preEvent);
 
   return {
     submissionId,
@@ -40,8 +45,14 @@ export function buildPublicResultsPayload(
       areaKey: k,
       areaName: areaNameByKey.get(k) ?? k,
       pct: r.areaPcts[k] ?? 0,
-      headline: gapCopy[k]?.headline ?? k,
-      tip: gapCopy[k]?.tip ?? "",
+      headline:
+        isBand4 && gapCopy[k]?.band4Headline
+          ? gapCopy[k]!.band4Headline!
+          : (gapCopy[k]?.headline ?? k),
+      tip:
+        isBand4 && gapCopy[k]?.band4Tip
+          ? gapCopy[k]!.band4Tip!
+          : (gapCopy[k]?.tip ?? ""),
     })),
     closingLine,
   };
@@ -230,9 +241,11 @@ export function createPublicRouter(deps: PublicRouterDeps): Router {
       }
     }
 
-    // 5. Idempotency + Store-first
-    const docId = submissionDocId(quiz.slug, email);
-    const clientUuid = String(body.clientSubmissionId ?? "").trim() || `srv_${Date.now()}`;
+    // 5. Idempotency by clientSubmissionId + Store-first (each fresh attempt is stored as its own submission)
+    const clientUuid =
+      String(body.clientSubmissionId ?? "").trim() ||
+      `srv_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+    const docId = submissionDocId(quiz.slug, clientUuid);
     const existing = await deps.store.getSubmission(docId);
 
     if (existing && existing.last_client_uuid === clientUuid) {
@@ -272,8 +285,8 @@ export function createPublicRouter(deps: PublicRouterDeps): Router {
       consentTimestamp: String(body.consentTimestamp ?? now),
       pageUri,
       ...(hutk ? { hutk } : {}),
-      attempt_count: existing ? existing.attempt_count + 1 : 1,
-      first_submitted_at: existing ? existing.first_submitted_at : now,
+      attempt_count: 1,
+      first_submitted_at: now,
       last_submitted_at: now,
       last_client_uuid: clientUuid,
       gemini_status: "fallback",

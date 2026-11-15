@@ -26,7 +26,7 @@ function buildAnswersWithTargetTotal(targetTotal: number): Record<string, string
 }
 
 describe("Acceptance Test 1: Scoring vectors on seed", () => {
-  it("scores all-best as 100% Band 4 (total 27 / max 27)", () => {
+  it("scores all-best as 100% Band 4 (total 27 / max 27) with Band 4 strength-framed copy", () => {
     const answers = Object.fromEntries(
       seed.scoredQuestions.map((q) => [
         q.id,
@@ -39,6 +39,14 @@ describe("Acceptance Test 1: Scoring vectors on seed", () => {
     assert.equal(res.readinessPct, 100);
     assert.equal(res.band.band, 4);
     assert.equal(res.band.label, "Hybrid ready");
+    assert.equal(
+      res.gapHeadline,
+      "Everyone is seen and heard + Everyone can contribute + Your spaces keep up",
+    );
+    assert.equal(
+      res.gapTip,
+      "People can see and hear each other clearly, in the room and remotely. Remote colleagues add to the work in real time, not after the fact. Your rooms fit how people meet now, and someone owns keeping them that way.",
+    );
   });
 
   it("scores all-worst as 0% Band 1 (total 0 / max 27)", () => {

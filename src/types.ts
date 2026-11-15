@@ -80,6 +80,8 @@ export interface ScoringBand {
 export interface GapCopyEntry {
   headline: string;
   tip: string;
+  band4Headline?: string;
+  band4Tip?: string;
 }
 
 export interface PriorityRule {
@@ -102,6 +104,8 @@ export interface QuizClosing {
   livePhase?: LivePhase;
   preEvent: string;
   postEvent: string;
+  preEventBand4?: string;
+  postEventBand4?: string;
 }
 
 export interface QuizIntegration {
@@ -175,6 +179,7 @@ export interface QuizPageCopy {
   gapCardBadgeBand4: string;
   ctaHeading: string;
   ctaBody: string;
+  ctaBodyBand4: string;
   ctaButton: string;
   ctaUrl: string;
   retakeButton: string;

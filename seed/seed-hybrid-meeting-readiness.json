@@ -73,6 +73,7 @@
     "gapCardBadgeBand4": "Strength to maintain",
     "ctaHeading": "Want to talk it through?",
     "ctaBody": "Book a short call with a Steelcase workplace specialist about your biggest gap.",
+    "ctaBodyBand4": "Book a short call with a Steelcase workplace specialist about keeping your meetings working as your teams change.",
     "ctaButton": "Speak to us",
     "ctaUrl": "#",
     "retakeButton": "Retake assessment"
@@ -369,15 +370,21 @@
     "gapCopy": {
       "being_seen_and_heard": {
         "headline": "Not everyone feels present",
-        "tip": "When people can't see or hear clearly, they switch off and stop contributing."
+        "tip": "When people can't see or hear clearly, they switch off and stop contributing.",
+        "band4Headline": "Everyone is seen and heard",
+        "band4Tip": "People can see and hear each other clearly, in the room and remotely."
       },
       "working_together": {
         "headline": "Remote colleagues are on the sidelines",
-        "tip": "When only the room can contribute, good ideas from remote colleagues get lost."
+        "tip": "When only the room can contribute, good ideas from remote colleagues get lost.",
+        "band4Headline": "Everyone can contribute",
+        "band4Tip": "Remote colleagues add to the work in real time, not after the fact."
       },
       "spaces_and_support": {
         "headline": "Your spaces haven't caught up with how people work",
-        "tip": "When rooms are the wrong size or hard to use, people avoid them."
+        "tip": "When rooms are the wrong size or hard to use, people avoid them.",
+        "band4Headline": "Your spaces keep up",
+        "band4Tip": "Your rooms fit how people meet now, and someone owns keeping them that way."
       }
     },
     "fallbackParagraphs": {
@@ -404,7 +411,9 @@
   "closing": {
     "livePhase": "pre",
     "preEvent": "See how to close these gaps at The Hybrid Equation on 3 Dec, with Steelcase and Logitech.",
-    "postEvent": "Watch The Hybrid Equation on demand and see how to close these gaps, with Steelcase and Logitech."
+    "postEvent": "Watch The Hybrid Equation on demand and see how to close these gaps, with Steelcase and Logitech.",
+    "preEventBand4": "Hear how other workplaces are keeping their meetings working at The Hybrid Equation on 3 Dec, with Steelcase and Logitech.",
+    "postEventBand4": "Watch The Hybrid Equation on demand and hear how other workplaces are keeping their meetings working, with Steelcase and Logitech."
   },
   "integration": {
     "hubspot": {

@@ -1,5 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import vm from "node:vm";
+import { renderAdminBuilderHtml } from "../src/render/admin-html.js";
 import { renderQuizHtml } from "../src/render/quiz-html.js";
 import { loadSeedDefinition } from "../src/services/seed-loader.js";
 
@@ -188,5 +190,26 @@ describe("Acceptance Test 5: Standalone HTML export & Design upgrade", () => {
     });
     assert.ok(html.includes("Steelcase + Logitech \u2014 The Hybrid Equation"));
     assert.ok(!html.includes("\u00e2\u20ac"));
+  });
+
+  it("compiles inline scripts in both renderQuizHtml and renderAdminBuilderHtml with zero syntax errors", () => {
+    const quizHtml = renderQuizHtml(seed, {
+      turnstileSiteKey: "0x4AAAAAAA_test_key",
+      submitEndpoint: "/api/quizzes/hybrid-meeting-readiness/submit",
+      previewMode: false,
+      standalone: false,
+    });
+    const quizScripts = [...quizHtml.matchAll(/<script>([\s\S]*?)<\/script>/g)];
+    assert.ok(quizScripts.length > 0);
+    for (const match of quizScripts) {
+      assert.doesNotThrow(() => new vm.Script(match[1]!));
+    }
+
+    const adminHtml = renderAdminBuilderHtml();
+    const adminScripts = [...adminHtml.matchAll(/<script>([\s\S]*?)<\/script>/g)];
+    assert.ok(adminScripts.length > 0);
+    for (const match of adminScripts) {
+      assert.doesNotThrow(() => new vm.Script(match[1]!));
+    }
   });
 });

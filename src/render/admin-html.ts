@@ -2019,7 +2019,7 @@ export function renderAdminBuilderHtml(): string {
             Object.keys(profObj).forEach((pid) => {
               let val = profObj[pid];
               if (otherObj[pid]) {
-                val += " (\"" + otherObj[pid] + "\")";
+                val += ' ("' + otherObj[pid] + '")';
               }
               profParts.push(pid.toUpperCase() + ": " + val);
             });

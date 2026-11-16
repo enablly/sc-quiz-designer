@@ -693,7 +693,7 @@ export function renderAdminBuilderHtml(): string {
       title: "New Assessment",
       subtitle: "Subtitle",
       status: "draft",
-      theme: { accent: "#6b4fbb", headerText: "Assessment" },
+      theme: { accent: "#6b4fbb", headerText: "Assessment", topBarTitle: "New Assessment" },
       consent: { textVersion: "consent-v1", text: "I agree to share my answers to receive my assessment results." },
       sources: ["public", "email", "linkedin"],
       profileQuestions: [
@@ -1235,12 +1235,26 @@ export function renderAdminBuilderHtml(): string {
       logosBox.style.marginTop = "1rem";
       const logosHead = document.createElement("div");
       logosHead.className = "subcard-head";
-      logosHead.innerHTML = "<strong>Co-Brand Logos (Logo 1 &amp; Logo 2)</strong>";
+      logosHead.innerHTML = "<strong>Top Bar Branding (Logos, Title Text &amp; Favicon)</strong>";
       const logosNote = document.createElement("p");
       logosNote.className = "muted";
       logosNote.style.marginTop = "0";
-      logosNote.textContent = "Choose PNG, JPG, or SVG files from your computer for Logo 1 (e.g. Steelcase) and Logo 2 (e.g. Logitech). Files are stored in Cloud Storage per quiz/revision (and copied on quiz duplication). Both render side by side when uploaded; a single logo renders alone; if neither is set, the quiz falls back to the text lockup.";
-      logosBox.append(logosHead, logosNote);
+      logosNote.textContent = "Configure the top-bar title text, upload PNG/JPG/SVG logo files for Logo 1 and Logo 2, and upload a per-quiz Favicon (.ico or .png). All files are stored in Cloud Storage per quiz/revision (and copied on quiz duplication).";
+
+      const topBarTitleIn = document.createElement("input");
+      topBarTitleIn.type = "text";
+      topBarTitleIn.placeholder = "Leave empty to render no title text next to the logos";
+      topBarTitleIn.value = draft.theme.topBarTitle ?? "";
+      topBarTitleIn.oninput = () => {
+        draft.theme.topBarTitle = topBarTitleIn.value;
+        schedulePreview();
+      };
+
+      logosBox.append(
+        logosHead,
+        logosNote,
+        makeField("Top Bar Title Text (shown next to logos; leave empty to hide)", topBarTitleIn),
+      );
 
       const logosGrid = document.createElement("div");
       logosGrid.className = "row";
@@ -1365,6 +1379,113 @@ export function renderAdminBuilderHtml(): string {
 
         logosGrid.append(card);
       });
+
+      // Favicon upload card (.ico or .png)
+      {
+        const favData = draft.theme.favicon || null;
+        const favCard = document.createElement("div");
+        favCard.className = "panel";
+        favCard.style.marginBottom = "0";
+
+        const favTitle = document.createElement("strong");
+        favTitle.style.display = "block";
+        favTitle.style.marginBottom = "0.5rem";
+        favTitle.textContent = "Favicon (Browser Tab Icon)";
+        favCard.append(favTitle);
+
+        const favPrev = document.createElement("div");
+        favPrev.style.minHeight = "64px";
+        favPrev.style.display = "flex";
+        favPrev.style.flexDirection = "column";
+        favPrev.style.gap = "0.35rem";
+        favPrev.style.alignItems = "center";
+        favPrev.style.justifyContent = "center";
+        favPrev.style.background = "#f3f4f6";
+        favPrev.style.border = "1px dashed #cbd5e1";
+        favPrev.style.borderRadius = "6px";
+        favPrev.style.padding = "0.5rem";
+        favPrev.style.marginBottom = "0.65rem";
+
+        if (favData && favData.objectKey) {
+          const favImg = document.createElement("img");
+          favImg.src = "/q/" + encodeURIComponent(draft.slug) + "/favicon?key=" + encodeURIComponent(favData.objectKey);
+          favImg.alt = "Favicon";
+          favImg.style.width = "32px";
+          favImg.style.height = "32px";
+          favImg.style.objectFit = "contain";
+          const favMeta = document.createElement("span");
+          favMeta.className = "muted";
+          favMeta.style.fontSize = "0.75rem";
+          favMeta.textContent = favData.fileName || favData.objectKey.split("/").pop();
+          favPrev.append(favImg, favMeta);
+        } else {
+          const emptyFav = document.createElement("span");
+          emptyFav.className = "muted";
+          emptyFav.textContent = "No favicon uploaded (default)";
+          favPrev.append(emptyFav);
+        }
+        favCard.append(favPrev);
+
+        const favFileIn = document.createElement("input");
+        favFileIn.type = "file";
+        favFileIn.accept = ".ico,.png,image/x-icon,image/vnd.microsoft.icon,image/png";
+        favFileIn.style.fontSize = "0.82rem";
+        favFileIn.style.marginBottom = "0.5rem";
+        favFileIn.onchange = async () => {
+          const file = favFileIn.files?.[0];
+          if (!file) return;
+          try {
+            const res = await fetch("/api/admin/quizzes/" + encodeURIComponent(currentSlug) + "/favicon", {
+              method: "POST",
+              headers: {
+                "Content-Type": file.type || "application/octet-stream",
+                "X-Logo-Filename": encodeURIComponent(file.name),
+              },
+              body: file,
+            });
+            if (res.status === 401) {
+              window.location.href = "/admin/login";
+              return;
+            }
+            const saved = await res.json().catch(() => ({}));
+            if (!res.ok) {
+              throw new Error(saved.error || "Favicon upload failed");
+            }
+            draft.theme = saved.theme;
+            revisions = await api("/api/admin/quizzes/" + encodeURIComponent(currentSlug) + "/revisions");
+            showBanner("Uploaded Favicon (" + file.name + ") to Cloud Storage.");
+            renderTab();
+            schedulePreview();
+          } catch (err) {
+            showBanner("Favicon upload failed: " + err.message, true);
+          }
+        };
+        favCard.append(makeField("Choose Favicon File (.ico or .png)", favFileIn));
+
+        if (favData && favData.objectKey) {
+          const rmFavBtn = document.createElement("button");
+          rmFavBtn.type = "button";
+          rmFavBtn.className = "btn btn-sm btn-danger";
+          rmFavBtn.textContent = "Remove Favicon";
+          rmFavBtn.onclick = async () => {
+            try {
+              const saved = await api("/api/admin/quizzes/" + encodeURIComponent(currentSlug) + "/favicon", {
+                method: "DELETE",
+              });
+              draft.theme = saved.theme;
+              revisions = await api("/api/admin/quizzes/" + encodeURIComponent(currentSlug) + "/revisions");
+              showBanner("Removed Favicon.");
+              renderTab();
+              schedulePreview();
+            } catch (err) {
+              showBanner("Remove favicon failed: " + err.message, true);
+            }
+          };
+          favCard.append(rmFavBtn);
+        }
+
+        logosGrid.append(favCard);
+      }
 
       logosBox.append(logosGrid);
 

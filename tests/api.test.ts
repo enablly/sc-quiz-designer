@@ -446,6 +446,71 @@ describe("Engine, Admin API, Retries, and CSV Export", () => {
     const rDupLogo1 = await fetch(`${srv.baseUrl}/q/hybrid-copy/logos/1`);
     assert.equal(rDupLogo1.status, 200);
     assert.deepEqual(Buffer.from(await rDupLogo1.arrayBuffer()), pngBuf);
+
+    // Upload a binary .ico favicon (magic bytes 00 00 01 00) -> stored in Cloud Storage and served via /q/:slug/favicon
+    const icoBuf = Buffer.from([0x00, 0x00, 0x01, 0x00, 0x01, 0x00, 0x10, 0x10, 0x00, 0x00, 0x01, 0x00, 0x20, 0x00]);
+    const rUpFav = await fetch(`${srv.baseUrl}/api/admin/quizzes/hybrid-meeting-readiness/favicon`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "image/x-icon",
+        "X-Logo-Filename": "brand.ico",
+        Authorization: "Bearer secret-admin-token",
+      },
+      body: icoBuf,
+    });
+    assert.equal(rUpFav.status, 200);
+    const qAfterFav = (await rUpFav.json()) as {
+      theme: { favicon?: { objectKey: string; contentType: string; fileName?: string } };
+    };
+    assert.ok(qAfterFav.theme.favicon?.objectKey.startsWith("quizzes/hybrid-meeting-readiness/logos/favicon-"));
+    assert.equal(qAfterFav.theme.favicon?.contentType, "image/x-icon");
+    assert.equal(qAfterFav.theme.favicon?.fileName, "brand.ico");
+
+    const rGetFav = await fetch(`${srv.baseUrl}/q/hybrid-meeting-readiness/favicon`);
+    assert.equal(rGetFav.status, 200);
+    assert.equal(rGetFav.headers.get("content-type"), "image/x-icon");
+    assert.deepEqual(Buffer.from(await rGetFav.arrayBuffer()), icoBuf);
+
+    // Replace favicon with .png -> new objectKey and image/png content-type
+    const rReplaceFav = await fetch(`${srv.baseUrl}/api/admin/quizzes/hybrid-meeting-readiness/favicon`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "image/png",
+        "X-Logo-Filename": "brand-icon.png",
+        Authorization: "Bearer secret-admin-token",
+      },
+      body: pngBuf,
+    });
+    assert.equal(rReplaceFav.status, 200);
+    const rGetFavPng = await fetch(`${srv.baseUrl}/q/hybrid-meeting-readiness/favicon`);
+    assert.equal(rGetFavPng.status, 200);
+    assert.equal(rGetFavPng.headers.get("content-type"), "image/png");
+
+    // Duplicate quiz -> copies favicon file in storage to the new quiz's namespace
+    const rDupFav = await fetch(`${srv.baseUrl}/api/admin/quizzes/hybrid-meeting-readiness/duplicate`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer secret-admin-token",
+      },
+      body: JSON.stringify({ slug: "hybrid-fav-copy" }),
+    });
+    assert.equal(rDupFav.status, 201);
+    const dupFavQuiz = (await rDupFav.json()) as {
+      theme: { favicon?: { objectKey: string } };
+    };
+    assert.ok(dupFavQuiz.theme.favicon?.objectKey.startsWith("quizzes/hybrid-fav-copy/logos/favicon-"));
+
+    // Remove favicon on original -> original returns 404, duplicate still serves its copied favicon
+    const rDelFav = await fetch(`${srv.baseUrl}/api/admin/quizzes/hybrid-meeting-readiness/favicon`, {
+      method: "DELETE",
+      headers: { Authorization: "Bearer secret-admin-token" },
+    });
+    assert.equal(rDelFav.status, 200);
+    const rGetFavAfterDel = await fetch(`${srv.baseUrl}/q/hybrid-meeting-readiness/favicon`);
+    assert.equal(rGetFavAfterDel.status, 404);
+    const rGetDupFav = await fetch(`${srv.baseUrl}/q/hybrid-fav-copy/favicon`);
+    assert.equal(rGetDupFav.status, 200);
   });
 
   it("caps revisions at 10 and supports one-click restore + unauthorized rejection", async () => {

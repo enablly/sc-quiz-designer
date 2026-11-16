@@ -14,6 +14,11 @@ export const ALLOWED_LOGO_CONTENT_TYPES = new Set([
   "image/jpeg",
   "image/svg+xml",
 ]);
+export const ALLOWED_FAVICON_CONTENT_TYPES = new Set([
+  "image/png",
+  "image/x-icon",
+  "image/vnd.microsoft.icon",
+]);
 
 export interface ValidationResult {
   valid: boolean;
@@ -229,11 +234,20 @@ export function normalizeQuizDefinition(input: QuizDefinition): QuizDefinition {
   clone.schemaVersion = Number(clone.schemaVersion || 1);
   const logo1 = normalizeLogoSlot(clone.theme?.logo1);
   const logo2 = normalizeLogoSlot(clone.theme?.logo2);
+  const favicon = normalizeLogoSlot(clone.theme?.favicon);
+  const hasTopBarTitleProp =
+    clone.theme !== undefined &&
+    clone.theme !== null &&
+    Object.prototype.hasOwnProperty.call(clone.theme, "topBarTitle");
   clone.theme = {
     accent: cleanStr(clone.theme?.accent || "#6b4fbb"),
     headerText: cleanStr(clone.theme?.headerText),
+    ...(hasTopBarTitleProp
+      ? { topBarTitle: cleanStr(clone.theme?.topBarTitle) }
+      : {}),
     ...(logo1 ? { logo1 } : {}),
     ...(logo2 ? { logo2 } : {}),
+    ...(favicon ? { favicon } : {}),
   };
   const rawLinks = clone.consent?.privacyLinks;
   const privacyLinks: PrivacyPolicyLink[] = Array.isArray(rawLinks)
@@ -383,6 +397,14 @@ export function validateQuizDefinition(raw: unknown): ValidationResult {
       if (!ALLOWED_LOGO_CONTENT_TYPES.has(slot.contentType)) {
         errors.push(`Theme ${slotName} has unsupported content type '${slot.contentType}' (allowed: image/png, image/jpeg, image/svg+xml).`);
       }
+    }
+  }
+  if (def.theme.favicon) {
+    if (!LOGO_OBJECT_KEY_RE.test(def.theme.favicon.objectKey)) {
+      errors.push("Theme favicon must reference a stored Cloud Storage object key (quizzes/<slug>/logos/<file>).");
+    }
+    if (!ALLOWED_FAVICON_CONTENT_TYPES.has(def.theme.favicon.contentType)) {
+      errors.push(`Theme favicon has unsupported content type '${def.theme.favicon.contentType}' (allowed: image/png, image/x-icon, image/vnd.microsoft.icon).`);
     }
   }
 

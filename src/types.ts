@@ -19,8 +19,10 @@ export interface QuizLogoSlot {
 export interface QuizTheme {
   accent: string;
   headerText: string;
+  topBarTitle?: string;
   logo1?: QuizLogoSlot;
   logo2?: QuizLogoSlot;
+  favicon?: QuizLogoSlot;
 }
 
 export interface PrivacyPolicyLink {

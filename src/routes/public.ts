@@ -138,6 +138,43 @@ export function createPublicRouter(deps: PublicRouterDeps): Router {
     }
   });
 
+  router.get("/q/:slug/favicon", async (req, res) => {
+    const { slug } = req.params;
+    const queryKey = typeof req.query.key === "string" ? req.query.key.trim() : "";
+    let objectKey = "";
+    if (
+      queryKey &&
+      LOGO_OBJECT_KEY_RE.test(queryKey) &&
+      queryKey.startsWith(`quizzes/${slug}/logos/`)
+    ) {
+      objectKey = queryKey;
+    } else {
+      const quiz = await deps.store.getQuiz(slug);
+      if (!quiz || !quiz.theme?.favicon?.objectKey) {
+        res.status(404).end();
+        return;
+      }
+      objectKey = quiz.theme.favicon.objectKey;
+    }
+
+    try {
+      const stored = await deps.logoStore.getLogo(objectKey);
+      if (!stored) {
+        res.status(404).end();
+        return;
+      }
+      res.setHeader("Content-Type", stored.contentType);
+      res.setHeader(
+        "Cache-Control",
+        queryKey ? "public, max-age=31536000, immutable" : "public, max-age=300",
+      );
+      res.send(stored.buffer);
+    } catch (err) {
+      console.error(`Failed to serve favicon ${objectKey}:`, err);
+      res.status(500).end();
+    }
+  });
+
   router.get("/q/:slug", async (req, res) => {
     const quiz = await deps.store.getQuiz(req.params.slug);
     if (!quiz || quiz.status !== "published") {

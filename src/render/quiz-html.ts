@@ -88,6 +88,26 @@ export function resolveQuizLogos(
   return logos;
 }
 
+export function resolveQuizFavicon(
+  quiz: QuizDefinition,
+  opts: RenderQuizOptions,
+): { href: string; type: string } | null {
+  const fav = quiz.theme?.favicon;
+  if (!fav?.objectKey) return null;
+  let baseOrigin = "";
+  if (opts.standalone && /^https?:\/\//i.test(opts.submitEndpoint)) {
+    try {
+      baseOrigin = new URL(opts.submitEndpoint).origin;
+    } catch {
+      baseOrigin = "";
+    }
+  }
+  return {
+    href: `${baseOrigin}/q/${encodeURIComponent(quiz.slug)}/favicon?key=${encodeURIComponent(fav.objectKey)}`,
+    type: fav.contentType || "image/png",
+  };
+}
+
 export function renderQuizHtml(
   quiz: QuizDefinition,
   opts: RenderQuizOptions,
@@ -168,8 +188,20 @@ export function renderQuizHtml(
 
   const logos = resolveQuizLogos(quiz, opts);
   const hasLogos = logos.length > 0;
+  const favicon = resolveQuizFavicon(quiz, opts);
+  const faviconLinkHtml = favicon
+    ? `\n<link rel="icon" type="${escapeHtml(favicon.type)}" href="${escapeHtml(favicon.href)}">`
+    : "";
 
-  const headerBrandHtml = hasLogos
+  const topBarTitle =
+    typeof quiz.theme?.topBarTitle === "string"
+      ? quiz.theme.topBarTitle.trim()
+      : "";
+  const topBarTitleHtml = topBarTitle
+    ? `<span class="header-bar-title">${escapeHtml(topBarTitle)}</span>`
+    : "";
+
+  const headerLogosOrFallbackHtml = hasLogos
     ? `<div class="brand-logos" aria-label="${escapeHtml(quiz.theme.headerText || quiz.title)}">${logos
         .map(
           (l) =>
@@ -178,22 +210,11 @@ export function renderQuizHtml(
         .join('<span class="brand-logo-sep" aria-hidden="true"></span>')}</div>`
     : `<span class="header-kicker">${escapeHtml(quiz.theme.headerText || quiz.title)}</span>`;
 
-  const pageLogoLockupHtml = hasLogos
-    ? `<div class="page-logos">${logos
-        .map(
-          (l) =>
-            `<img class="page-logo" src="${escapeHtml(l.src)}" alt="${escapeHtml(l.alt)}">`,
-        )
-        .join('<span class="page-logo-sep" aria-hidden="true"></span>')}</div>`
-    : "";
+  const headerBrandHtml = `${headerLogosOrFallbackHtml}${topBarTitleHtml}`;
 
-  const welcomeBrandHtml = hasLogos
-    ? `${pageLogoLockupHtml}<p class="co-brand">${escapeHtml(copy.welcomeSubline)}</p>`
-    : `<p class="co-brand">${escapeHtml(copy.welcomeSubline)}</p>`;
+  const welcomeBrandHtml = `<p class="co-brand">${escapeHtml(copy.welcomeSubline)}</p>`;
 
-  const resultsBrandHtml = hasLogos
-    ? pageLogoLockupHtml
-    : `<p class="co-brand results-co-brand">${escapeHtml(copy.welcomeSubline)}</p>`;
+  const resultsBrandHtml = `<p class="co-brand results-co-brand">${escapeHtml(copy.welcomeSubline)}</p>`;
 
   const privacyLinksHtml =
     privacyLinks.length > 0
@@ -221,7 +242,7 @@ export function renderQuizHtml(
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${escapeHtml(quiz.title)}</title>
+<title>${escapeHtml(quiz.title)}</title>${faviconLinkHtml}
 ${turnstileScript}
 <style>
   :root {
@@ -283,39 +304,27 @@ ${turnstileScript}
     margin: 0 auto;
     display: flex;
     align-items: center;
-    gap: 0.75rem;
+    flex-wrap: wrap;
+    gap: 0.75rem 1.15rem;
   }
   .brand-logos {
     display: inline-flex;
     align-items: center;
-    gap: 0.75rem;
+    gap: 0.9rem;
     flex-wrap: wrap;
   }
-  .brand-logo { max-height: 32px; width: auto; display: block; }
+  .brand-logo { max-height: 64px; width: auto; display: block; object-fit: contain; }
   .brand-logo-sep {
     width: 1px;
-    height: 20px;
+    height: 36px;
     background: currentColor;
     opacity: 0.4;
   }
-  .page-logos {
-    display: flex;
-    align-items: center;
-    gap: 1rem;
-    flex-wrap: wrap;
-    margin-bottom: 0.65rem;
-  }
-  .page-logo {
-    max-height: 36px;
-    max-width: 160px;
-    width: auto;
-    display: block;
-    object-fit: contain;
-  }
-  .page-logo-sep {
-    width: 1px;
-    height: 24px;
-    background: var(--border);
+  .header-bar-title {
+    font-weight: 600;
+    font-size: 1.05rem;
+    letter-spacing: 0.01em;
+    line-height: 1.25;
   }
   .header-kicker {
     font-weight: 600;

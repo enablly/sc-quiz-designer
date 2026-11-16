@@ -6,7 +6,8 @@
   "status": "draft",
   "theme": {
     "accent": "#6b4fbb",
-    "headerText": "Work Better by Steelcase"
+    "headerText": "Work Better by Steelcase",
+    "topBarTitle": "Hybrid Meeting Readiness Assessment"
   },
   "consent": {
     "textVersion": "consent-2026-11-v2",

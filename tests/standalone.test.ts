@@ -156,6 +156,49 @@ describe("Acceptance Test 5: Standalone HTML export & Design upgrade", () => {
       ),
     );
     assert.ok(htmlTwo.includes('<span class="brand-logo-sep"'));
+
+    // Welcome card no longer renders in-card logos (logos appear only once, in the top bar)
+    assert.ok(!htmlTwo.includes('class="page-logos"'));
+    assert.ok(!htmlTwo.includes('class="page-logo"'));
+    const logo1Matches = htmlTwo.match(/\/q\/hybrid-meeting-readiness\/logos\/1\?/g) ?? [];
+    assert.equal(logo1Matches.length, 1);
+
+    // Top-bar logos render at 64px max-height (2x of 32px)
+    assert.ok(htmlTwo.includes(".brand-logo { max-height: 64px;"));
+
+    // Top-bar title text renders next to logos by default and disappears when empty
+    assert.ok(
+      htmlTwo.includes('<span class="header-bar-title">Hybrid Meeting Readiness Assessment</span>'),
+    );
+    const emptyBarTitleQuiz = structuredClone(twoLogoQuiz);
+    emptyBarTitleQuiz.theme.topBarTitle = "";
+    const htmlEmptyBarTitle = renderQuizHtml(emptyBarTitleQuiz, {
+      turnstileSiteKey: "k",
+      submitEndpoint: "/submit",
+      previewMode: false,
+      standalone: false,
+    });
+    assert.ok(!htmlEmptyBarTitle.includes('class="header-bar-title"'));
+
+    // Favicon: none by default -> no <link rel="icon"; when uploaded -> renders <link rel="icon"> in <head>
+    assert.ok(!htmlTwo.includes('<link rel="icon"'));
+    const withFaviconQuiz = structuredClone(twoLogoQuiz);
+    withFaviconQuiz.theme.favicon = {
+      objectKey: "quizzes/hybrid-meeting-readiness/logos/favicon-789.ico",
+      contentType: "image/x-icon",
+      fileName: "favicon.ico",
+    };
+    const htmlWithFavicon = renderQuizHtml(withFaviconQuiz, {
+      turnstileSiteKey: "k",
+      submitEndpoint: "/submit",
+      previewMode: false,
+      standalone: false,
+    });
+    assert.ok(
+      htmlWithFavicon.includes(
+        '<link rel="icon" type="image/x-icon" href="/q/hybrid-meeting-readiness/favicon?key=quizzes%2Fhybrid-meeting-readiness%2Flogos%2Ffavicon-789.ico">',
+      ),
+    );
   });
 
   it("renders custom admin-edited respondent copy strings from quiz.copy", () => {

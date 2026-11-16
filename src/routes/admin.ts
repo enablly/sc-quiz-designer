@@ -48,10 +48,43 @@ function detectLogoMimeAndExt(
   return null;
 }
 
+function detectFaviconMimeAndExt(
+  buf: Buffer,
+): { contentType: string; ext: string } | null {
+  if (!buf || buf.length === 0) return null;
+  // Check PNG magic bytes: 89 50 4E 47 0D 0A 1A 0A
+  if (
+    buf.length >= 8 &&
+    buf[0] === 0x89 &&
+    buf[1] === 0x50 &&
+    buf[2] === 0x4e &&
+    buf[3] === 0x47
+  ) {
+    return { contentType: "image/png", ext: "png" };
+  }
+  // Check ICO magic bytes: 00 00 01 00
+  if (
+    buf.length >= 4 &&
+    buf[0] === 0x00 &&
+    buf[1] === 0x00 &&
+    buf[2] === 0x01 &&
+    buf[3] === 0x00
+  ) {
+    return { contentType: "image/x-icon", ext: "ico" };
+  }
+  return null;
+}
+
 function extFromLogoSlot(slot: QuizLogoSlot): string {
   if (slot.contentType === "image/jpeg") return "jpg";
   if (slot.contentType === "image/svg+xml") return "svg";
-  const m = slot.objectKey.match(/\.(png|jpg|jpeg|svg)$/i);
+  if (
+    slot.contentType === "image/x-icon" ||
+    slot.contentType === "image/vnd.microsoft.icon"
+  ) {
+    return "ico";
+  }
+  const m = slot.objectKey.match(/\.(png|jpg|jpeg|svg|ico)$/i);
   return m ? m[1]!.toLowerCase() : "png";
 }
 
@@ -61,15 +94,16 @@ async function copyQuizLogosToSlug(
   targetSlug: string,
 ): Promise<QuizTheme> {
   const nextTheme: QuizTheme = structuredClone(theme);
-  for (const [slotNum, slotKey] of [
-    [1, "logo1"],
-    [2, "logo2"],
+  for (const [prefix, slotKey] of [
+    ["logo1", "logo1"],
+    ["logo2", "logo2"],
+    ["favicon", "favicon"],
   ] as const) {
     const srcSlot = nextTheme[slotKey];
     if (!srcSlot?.objectKey) continue;
     const ext = extFromLogoSlot(srcSlot);
     const rand = crypto.randomBytes(6).toString("hex");
-    const newObjectKey = `quizzes/${targetSlug}/logos/logo${slotNum}-${Date.now()}-${rand}.${ext}`;
+    const newObjectKey = `quizzes/${targetSlug}/logos/${prefix}-${Date.now()}-${rand}.${ext}`;
     const copied = await logoStore.copyLogo(srcSlot.objectKey, newObjectKey);
     if (copied) {
       nextTheme[slotKey] = {
@@ -459,6 +493,96 @@ export function createAdminRouter(deps: AdminRouterDeps): Router {
       theme: nextTheme,
     };
     const rev = await deps.store.saveQuiz(updated, `Removed logo ${slot}`);
+    res.json(rev.definition);
+  });
+
+  router.post(
+    "/api/admin/quizzes/:slug/favicon",
+    express.raw({
+      type: [
+        "image/png",
+        "image/x-icon",
+        "image/vnd.microsoft.icon",
+        "application/octet-stream",
+      ],
+      limit: "2mb",
+    }),
+    async (req, res) => {
+      const { slug } = req.params;
+      const quiz = await deps.store.getQuiz(slug);
+      if (!quiz) {
+        res.status(404).json({ error: "Quiz not found." });
+        return;
+      }
+      if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
+        res.status(400).json({
+          error: "Please upload a valid .ico or .png favicon file.",
+        });
+        return;
+      }
+      const detected = detectFaviconMimeAndExt(req.body);
+      if (!detected) {
+        res.status(400).json({
+          error: "Unsupported favicon format. Please upload a .ico or .png file.",
+        });
+        return;
+      }
+
+      const rawFileName = String(req.headers["x-logo-filename"] ?? "").trim();
+      let fileName = "";
+      if (rawFileName) {
+        try {
+          fileName = decodeURIComponent(rawFileName).slice(0, 120);
+        } catch {
+          fileName = rawFileName.slice(0, 120);
+        }
+      }
+
+      const rand = crypto.randomBytes(6).toString("hex");
+      const objectKey = `quizzes/${quiz.slug}/logos/favicon-${Date.now()}-${rand}.${detected.ext}`;
+
+      try {
+        await deps.logoStore.putLogo(objectKey, req.body, detected.contentType);
+      } catch (err) {
+        console.error("Failed to store favicon in Cloud Storage:", err);
+        res.status(500).json({
+          error: "Failed to store favicon file in Cloud Storage: " + (err as Error).message,
+        });
+        return;
+      }
+
+      const updated: QuizDefinition = {
+        ...structuredClone(quiz),
+        theme: {
+          ...quiz.theme,
+          favicon: {
+            objectKey,
+            contentType: detected.contentType,
+            ...(fileName ? { fileName } : {}),
+            alt: "Favicon",
+            uploadedAt: new Date().toISOString(),
+          },
+        },
+      };
+      const rev = await deps.store.saveQuiz(updated, "Uploaded favicon");
+      res.json(rev.definition);
+    },
+  );
+
+  router.delete("/api/admin/quizzes/:slug/favicon", async (req, res) => {
+    const { slug } = req.params;
+    const quiz = await deps.store.getQuiz(slug);
+    if (!quiz) {
+      res.status(404).json({ error: "Quiz not found." });
+      return;
+    }
+    const nextTheme = { ...quiz.theme };
+    delete nextTheme.favicon;
+    const updated: QuizDefinition = {
+      ...structuredClone(quiz),
+      theme: nextTheme,
+    };
+    const rev = await deps.store.saveQuiz(updated, "Removed favicon");
     res.json(rev.definition);
   });
 

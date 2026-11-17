@@ -114,6 +114,8 @@ export interface QuizIntegration {
   hubspot: {
     mappingStyle: string;
     note?: string;
+    industryMap?: Record<string, string>;
+    roleMap?: Record<string, string>;
   };
   gemini: {
     enabled: boolean;

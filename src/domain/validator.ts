@@ -355,10 +355,26 @@ export function normalizeQuizDefinition(input: QuizDefinition): QuizDefinition {
     ...(preB4 ? { preEventBand4: preB4 } : {}),
     ...(postB4 ? { postEventBand4: postB4 } : {}),
   };
+  const rawIndustryMap = clone.integration?.hubspot?.industryMap;
+  const cleanedIndustryMap: Record<string, string> | undefined =
+    rawIndustryMap && typeof rawIndustryMap === "object"
+      ? Object.fromEntries(
+          Object.entries(rawIndustryMap).map(([k, v]) => [cleanStr(k), cleanStr(v)]),
+        )
+      : undefined;
+  const rawRoleMap = clone.integration?.hubspot?.roleMap;
+  const cleanedRoleMap: Record<string, string> | undefined =
+    rawRoleMap && typeof rawRoleMap === "object"
+      ? Object.fromEntries(
+          Object.entries(rawRoleMap).map(([k, v]) => [cleanStr(k), cleanStr(v)]),
+        )
+      : undefined;
   clone.integration = {
     hubspot: {
       mappingStyle: String(clone.integration?.hubspot?.mappingStyle || "hybrid-2026").trim(),
       ...(clone.integration?.hubspot?.note ? { note: clone.integration.hubspot.note } : {}),
+      ...(cleanedIndustryMap !== undefined ? { industryMap: cleanedIndustryMap } : {}),
+      ...(cleanedRoleMap !== undefined ? { roleMap: cleanedRoleMap } : {}),
     },
     gemini: {
       enabled: clone.integration?.gemini?.enabled !== false,

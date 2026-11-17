@@ -2090,11 +2090,80 @@ export function renderAdminBuilderHtml(): string {
       const hsIn = document.createElement("input"); hsIn.type = "text"; hsIn.value = draft.integration?.hubspot?.mappingStyle || "hybrid-2026";
       hsIn.oninput = () => { draft.integration.hubspot.mappingStyle = hsIn.value; };
 
+      if (!draft.integration.hubspot.industryMap) {
+        draft.integration.hubspot.industryMap = {
+          financial_services: "financial_services",
+          manufacturing: "appliance_manufacturing",
+          tech: "computer_software",
+          professional_services: "management_consulting",
+          public_sector_education: "higher_education",
+          other: "other",
+        };
+      }
+      if (!draft.integration.hubspot.roleMap) {
+        draft.integration.hubspot.roleMap = {
+          workplace_facilities: "operations",
+          it: "information_technology",
+          hr_people: "human_resources",
+          business_leader: "business_development",
+          other: "other",
+        };
+      }
+
+      const mapBox = document.createElement("div");
+      mapBox.className = "subcard";
+      mapBox.style.marginTop = "1rem";
+      mapBox.innerHTML =
+        "<div class=\\"subcard-head\\"><strong>HubSpot Dropdown Value-Maps (industry &amp; hs_role)</strong></div>" +
+        "<p class=\\"muted\\" style=\\"margin-top:0;\\">Map each quiz option code to its closest existing HubSpot portal dropdown value (lowercase snake_case). Leave blank to omit that dropdown field from the HubSpot submission (fail-safe; the exact quiz value always rides inside quiz_completed).</p>";
+
+      const p1Q = draft.profileQuestions[0];
+      if (p1Q && Array.isArray(p1Q.options)) {
+        const roleHdr = document.createElement("strong");
+        roleHdr.style.display = "block";
+        roleHdr.style.margin = "0.5rem 0 0.35rem";
+        roleHdr.textContent = "Role -> HubSpot hs_role";
+        mapBox.append(roleHdr);
+        p1Q.options.forEach((opt) => {
+          const inp = document.createElement("input");
+          inp.type = "text";
+          inp.placeholder = "Leave empty to omit hs_role for " + opt.code;
+          inp.value = draft.integration.hubspot.roleMap[opt.code] ?? "";
+          inp.oninput = () => {
+            const v = inp.value.trim();
+            if (v) draft.integration.hubspot.roleMap[opt.code] = v;
+            else delete draft.integration.hubspot.roleMap[opt.code];
+          };
+          mapBox.append(makeField(opt.text + " (" + opt.code + ")", inp));
+        });
+      }
+
+      const p2Q = draft.profileQuestions[1];
+      if (p2Q && Array.isArray(p2Q.options)) {
+        const indHdr = document.createElement("strong");
+        indHdr.style.display = "block";
+        indHdr.style.margin = "0.75rem 0 0.35rem";
+        indHdr.textContent = "Industry -> HubSpot industry";
+        mapBox.append(indHdr);
+        p2Q.options.forEach((opt) => {
+          const inp = document.createElement("input");
+          inp.type = "text";
+          inp.placeholder = "Leave empty to omit industry for " + opt.code;
+          inp.value = draft.integration.hubspot.industryMap[opt.code] ?? "";
+          inp.oninput = () => {
+            const v = inp.value.trim();
+            if (v) draft.integration.hubspot.industryMap[opt.code] = v;
+            else delete draft.integration.hubspot.industryMap[opt.code];
+          };
+          mapBox.append(makeField(opt.text + " (" + opt.code + ")", inp));
+        });
+      }
+
       const gemChk = document.createElement("input"); gemChk.type = "checkbox"; gemChk.checked = draft.integration?.gemini?.enabled !== false;
       gemChk.onchange = () => { draft.integration.gemini.enabled = gemChk.checked; };
       const gemWrap = document.createElement("label");
       gemWrap.style.display = "flex"; gemWrap.style.gap = "0.5rem"; gemWrap.style.alignItems = "center";
-      gemWrap.append(gemChk, document.createTextNode("Enable Gemini email-only paragraph"));
+      gemWrap.append(gemChk, document.createTextNode("Enable Co-pilot email-only paragraph"));
 
       p.append(
         makeField("Live Phase", phaseSel),
@@ -2103,6 +2172,7 @@ export function renderAdminBuilderHtml(): string {
         makeField("Pre-Event Closing Line (Band 4)", preB4In),
         makeField("Post-Event Closing Line (Band 4)", postB4In),
         makeField("HubSpot Mapping Style", hsIn),
+        mapBox,
         gemWrap,
       );
       tabContent.append(p);

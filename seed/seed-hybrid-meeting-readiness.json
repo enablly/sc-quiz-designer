@@ -419,7 +419,22 @@
   "integration": {
     "hubspot": {
       "mappingStyle": "hybrid-2026",
-      "note": "Renderer builds the 4 standard + 22 hybrid_* form fields from this definition; property names follow the definition's area keys."
+      "note": "Submits 4 standard + up to 16 existing HubSpot native fields (plus full 22-key hybrid_* JSON pack in quiz_completed). industryMap: financial_services (confirmed), manufacturing -> appliance_manufacturing (provisional), tech/professional_services/public_sector_education/other (provisional best-effort snake_case). roleMap: all provisional best-effort snake_case (e.g. business_leader -> business_development).",
+      "industryMap": {
+        "financial_services": "financial_services",
+        "manufacturing": "appliance_manufacturing",
+        "tech": "computer_software",
+        "professional_services": "management_consulting",
+        "public_sector_education": "higher_education",
+        "other": "other"
+      },
+      "roleMap": {
+        "workplace_facilities": "operations",
+        "it": "information_technology",
+        "hr_people": "human_resources",
+        "business_leader": "business_development",
+        "other": "other"
+      }
     },
     "gemini": {
       "enabled": true,

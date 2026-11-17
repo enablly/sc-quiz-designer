@@ -249,6 +249,8 @@ describe("Acceptance Test 5: Standalone HTML export & Design upgrade", () => {
     }
 
     const adminHtml = renderAdminBuilderHtml();
+    assert.ok(adminHtml.includes("Enable Co-pilot email-only paragraph"));
+    assert.ok(!adminHtml.includes("Enable Gemini email-only paragraph"));
     const adminScripts = [...adminHtml.matchAll(/<script>([\s\S]*?)<\/script>/g)];
     assert.ok(adminScripts.length > 0);
     for (const match of adminScripts) {

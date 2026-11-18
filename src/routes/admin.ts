@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 import express, { Router } from "express";
 import type { AppConfig } from "../config.js";
 import { buildSubmissionsCsv, sortSubmissionsForExport } from "../domain/csv.js";
-import { computeQuizStats } from "../domain/stats.js";
+import { computeQuizStats, dedupeSubmissionsByLatestEmail } from "../domain/stats.js";
 import { validateQuizDefinition } from "../domain/validator.js";
 import { renderAdminBuilderHtml, renderAdminLoginHtml } from "../render/admin-html.js";
 import { renderQuizHtml } from "../render/quiz-html.js";
@@ -176,19 +176,23 @@ export function createAdminRouter(deps: AdminRouterDeps): Router {
     const enriched = await Promise.all(
       list.map(async (q) => {
         const subs = await deps.store.listSubmissionsBySlug(q.slug);
-        const totalCompletions = subs.length;
+        const deduped = dedupeSubmissionsByLatestEmail(subs);
+        const respondents = deduped.length;
+        const totalAttempts = subs.length;
         const averageReadinessPct =
-          totalCompletions > 0
+          respondents > 0
             ? Math.round(
-                subs.reduce((s, r) => s + (r.result?.readinessPct ?? 0), 0) /
-                  totalCompletions,
+                deduped.reduce((s, r) => s + (r.result?.readinessPct ?? 0), 0) /
+                  respondents,
               )
             : null;
         return {
           ...q,
           publicPath: `/q/${encodeURIComponent(q.slug)}`,
-          submissionCount: totalCompletions,
-          totalCompletions,
+          respondents,
+          submissionCount: respondents,
+          totalCompletions: respondents,
+          totalAttempts,
           averageReadinessPct,
         };
       }),

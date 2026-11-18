@@ -47,6 +47,7 @@ export interface QuizStatsResponse {
   title: string;
   status: QuizStatus;
   publicPath: string;
+  respondents: number;
   totalCompletions: number;
   totalAttempts: number;
   averageReadinessPct: number;
@@ -58,15 +59,39 @@ export interface QuizStatsResponse {
   scoredQuestions: QuestionStat[];
 }
 
+function submissionCompletedAtMs(s: SubmissionDocument): number {
+  const raw =
+    s.last_submitted_at || s.first_submitted_at || s.consentTimestamp || "";
+  const parsed = Date.parse(raw);
+  return Number.isNaN(parsed) ? 0 : parsed;
+}
+
+/**
+ * Dedupe submissions by respondent email (trimmed, lowercased),
+ * keeping the LATEST submission per email by completed-at timestamp.
+ */
+export function dedupeSubmissionsByLatestEmail(
+  submissions: SubmissionDocument[],
+): SubmissionDocument[] {
+  const latestByEmail = new Map<string, SubmissionDocument>();
+  for (const sub of submissions) {
+    const emailKey = (sub.email ?? "").trim().toLowerCase() || sub.id;
+    const prev = latestByEmail.get(emailKey);
+    if (!prev || submissionCompletedAtMs(sub) >= submissionCompletedAtMs(prev)) {
+      latestByEmail.set(emailKey, sub);
+    }
+  }
+  return [...latestByEmail.values()];
+}
+
 export function computeQuizStats(
   quiz: QuizDefinition,
   submissions: SubmissionDocument[],
 ): QuizStatsResponse {
-  const totalCompletions = submissions.length;
-  const totalAttempts = submissions.reduce(
-    (sum, s) => sum + (typeof s.attempt_count === "number" ? s.attempt_count : 1),
-    0,
-  );
+  const totalAttempts = submissions.length;
+  const deduped = dedupeSubmissionsByLatestEmail(submissions);
+  const respondents = deduped.length;
+  const totalCompletions = respondents;
 
   const areaMaxByKey: Record<string, number> = {};
   for (const a of quiz.areas) {
@@ -79,27 +104,27 @@ export function computeQuizStats(
     areaMaxByKey[sq.area] = (areaMaxByKey[sq.area] ?? 0) + qMax;
   }
 
-  const sumPct = submissions.reduce(
+  const sumPct = deduped.reduce(
     (sum, s) => sum + (s.result?.readinessPct ?? 0),
     0,
   );
-  const sumPts = submissions.reduce(
+  const sumPts = deduped.reduce(
     (sum, s) => sum + (s.result?.totalPoints ?? 0),
     0,
   );
 
   const averageReadinessPct =
-    totalCompletions > 0 ? Math.round(sumPct / totalCompletions) : 0;
+    respondents > 0 ? Math.round(sumPct / respondents) : 0;
   const averageTotalPoints =
-    totalCompletions > 0
-      ? Math.round((sumPts / totalCompletions) * 10) / 10
+    respondents > 0
+      ? Math.round((sumPts / respondents) * 10) / 10
       : 0;
 
-  // 1. Distribution across the bands
+  // 1. Distribution across the bands (over deduped respondents)
   const sortedBands = [...quiz.scoring.bands].sort((a, b) => a.band - b.band);
   const bands: BandStat[] = sortedBands.map((b) => {
-    const count = submissions.filter((s) => s.result?.band?.band === b.band).length;
-    const pct = totalCompletions > 0 ? Math.round((count / totalCompletions) * 100) : 0;
+    const count = deduped.filter((s) => s.result?.band?.band === b.band).length;
+    const pct = respondents > 0 ? Math.round((count / respondents) * 100) : 0;
     return {
       band: b.band,
       label: b.label,
@@ -110,17 +135,17 @@ export function computeQuizStats(
     };
   });
 
-  // 2. Average score per area
+  // 2. Average score per area (over deduped respondents)
   const areas: AreaStat[] = quiz.areas.map((a) => {
-    const sumAreaPct = submissions.reduce(
+    const sumAreaPct = deduped.reduce(
       (sum, s) => sum + (s.result?.areaPcts?.[a.key] ?? 0),
       0,
     );
-    const sumAreaScore = submissions.reduce(
+    const sumAreaScore = deduped.reduce(
       (sum, s) => sum + (s.result?.areaScores?.[a.key] ?? 0),
       0,
     );
-    const biggestGapCount = submissions.filter((s) =>
+    const biggestGapCount = deduped.filter((s) =>
       Array.isArray(s.result?.biggestGap) && s.result.biggestGap.includes(a.key),
     ).length;
 
@@ -128,26 +153,26 @@ export function computeQuizStats(
       key: a.key,
       name: a.name,
       averagePct:
-        totalCompletions > 0 ? Math.round(sumAreaPct / totalCompletions) : 0,
+        respondents > 0 ? Math.round(sumAreaPct / respondents) : 0,
       averageScore:
-        totalCompletions > 0
-          ? Math.round((sumAreaScore / totalCompletions) * 10) / 10
+        respondents > 0
+          ? Math.round((sumAreaScore / respondents) * 10) / 10
           : 0,
       maxScore: areaMaxByKey[a.key] ?? 0,
       biggestGapCount,
       biggestGapPct:
-        totalCompletions > 0
-          ? Math.round((biggestGapCount / totalCompletions) * 100)
+        respondents > 0
+          ? Math.round((biggestGapCount / respondents) * 100)
           : 0,
     };
   });
 
-  // 3. Per-question breakdown: profile questions
+  // 3. Per-question breakdown: profile questions (over deduped respondents)
   const profileQuestions: QuestionStat[] = quiz.profileQuestions.map((pq, idx) => {
     const counts = pq.options.map((opt) => {
       const codeNorm = opt.code.trim().toLowerCase();
       const textNorm = opt.text.trim().toLowerCase();
-      return submissions.filter((s) => {
+      return deduped.filter((s) => {
         const val = String(s.profile?.[pq.id] ?? "").trim().toLowerCase();
         return val !== "" && (val === codeNorm || val === textNorm);
       }).length;
@@ -178,12 +203,12 @@ export function computeQuizStats(
     };
   });
 
-  // 4. Per-question breakdown: scored questions
+  // 4. Per-question breakdown: scored questions (over deduped respondents)
   const areaNameByKey = new Map(quiz.areas.map((a) => [a.key, a.name]));
   const scoredQuestions: QuestionStat[] = quiz.scoredQuestions.map((sq) => {
     const ordered = orderedOptions(sq);
     const counts = ordered.map((opt) =>
-      submissions.filter((s) => s.answers?.[sq.id] === opt.text).length,
+      deduped.filter((s) => s.answers?.[sq.id] === opt.text).length,
     );
     const totalAnswered = counts.reduce((acc, c) => acc + c, 0);
     const maxCount = counts.reduce((m, c) => Math.max(m, c), 0);
@@ -226,6 +251,7 @@ export function computeQuizStats(
     title: quiz.title,
     status: quiz.status,
     publicPath: `/q/${encodeURIComponent(quiz.slug)}`,
+    respondents,
     totalCompletions,
     totalAttempts,
     averageReadinessPct,

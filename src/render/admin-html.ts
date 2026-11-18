@@ -487,7 +487,7 @@ export function renderAdminBuilderHtml(): string {
                 <th scope="col">Quiz Title</th>
                 <th scope="col">Status</th>
                 <th scope="col">Public Link</th>
-                <th scope="col">Completed Submissions</th>
+                <th scope="col">Respondents</th>
                 <th scope="col">Actions</th>
               </tr>
             </thead>
@@ -766,7 +766,10 @@ export function renderAdminBuilderHtml(): string {
     quizzes.forEach((q) => {
       const tr = document.createElement("tr");
       const fullUrl = window.location.origin + "/q/" + q.slug;
-      const completions = typeof q.totalCompletions === "number" ? q.totalCompletions : (q.submissionCount || 0);
+      const respondents = typeof q.respondents === "number"
+        ? q.respondents
+        : (typeof q.totalCompletions === "number" ? q.totalCompletions : (q.submissionCount || 0));
+      const attempts = typeof q.totalAttempts === "number" ? q.totalAttempts : respondents;
       const avgPct = typeof q.averageReadinessPct === "number" ? q.averageReadinessPct : 0;
 
       const thTitle = document.createElement("th");
@@ -809,8 +812,10 @@ export function renderAdminBuilderHtml(): string {
 
       const tdCompletions = document.createElement("td");
       tdCompletions.innerHTML =
-        "<strong style=\\"font-size:1.05rem;\\">" + completions + "</strong> completed" +
-        (completions > 0 ? "<div class=\\"muted\\">Avg score: " + avgPct + "%</div>" : "<div class=\\"muted\\">No submissions yet</div>");
+        "<strong style=\\"font-size:1.05rem;\\">" + respondents + "</strong> respondent" + (respondents === 1 ? "" : "s") +
+        (respondents > 0
+          ? "<div class=\\"muted\\">Total attempts: " + attempts + " · Avg score: " + avgPct + "%</div>"
+          : "<div class=\\"muted\\">No respondents yet</div>");
 
       const tdActions = document.createElement("td");
       const actWrap = document.createElement("div");
@@ -895,19 +900,27 @@ export function renderAdminBuilderHtml(): string {
       const kpiGrid = document.createElement("div");
       kpiGrid.className = "stats-kpi-grid";
 
-      const kpiCompletions = document.createElement("div");
-      kpiCompletions.className = "kpi-card";
-      kpiCompletions.innerHTML =
-        "<div class=\\"kpi-label\\">Total Completed Submissions</div>" +
-        "<div class=\\"kpi-value\\">" + stats.totalCompletions + "</div>" +
-        "<div class=\\"kpi-sub\\">Aggregated server-side across all respondents</div>";
+      const respondentCount = typeof stats.respondents === "number" ? stats.respondents : stats.totalCompletions;
+      const kpiRespondents = document.createElement("div");
+      kpiRespondents.className = "kpi-card";
+      kpiRespondents.innerHTML =
+        "<div class=\\"kpi-label\\">Respondents</div>" +
+        "<div class=\\"kpi-value\\">" + respondentCount + "</div>" +
+        "<div class=\\"kpi-sub\\">Unique respondents (latest attempt per email)</div>";
+
+      const kpiAttempts = document.createElement("div");
+      kpiAttempts.className = "kpi-card";
+      kpiAttempts.innerHTML =
+        "<div class=\\"kpi-label\\">Total attempts</div>" +
+        "<div class=\\"kpi-value\\">" + stats.totalAttempts + "</div>" +
+        "<div class=\\"kpi-sub\\">All submission documents recorded</div>";
 
       const kpiAvg = document.createElement("div");
       kpiAvg.className = "kpi-card";
       kpiAvg.innerHTML =
         "<div class=\\"kpi-label\\">Average Readiness Score</div>" +
         "<div class=\\"kpi-value\\">" + stats.averageReadinessPct + "%</div>" +
-        "<div class=\\"kpi-sub\\">Mean readiness percentage across completions</div>";
+        "<div class=\\"kpi-sub\\">Mean readiness % across unique respondents</div>";
 
       const publicUrl = window.location.origin + "/q/" + stats.slug;
       const kpiLink = document.createElement("div");
@@ -920,7 +933,7 @@ export function renderAdminBuilderHtml(): string {
       const kpiCopyBtn = kpiLink.querySelector(".kpi-copy-btn");
       kpiCopyBtn.addEventListener("click", () => copyTextToClipboard(publicUrl, kpiCopyBtn));
 
-      kpiGrid.append(kpiCompletions, kpiAvg, kpiLink);
+      kpiGrid.append(kpiRespondents, kpiAttempts, kpiAvg, kpiLink);
       quizStatsBody.append(kpiGrid);
 
       // Band Distribution + Area Averages side by side
@@ -1039,7 +1052,10 @@ export function renderAdminBuilderHtml(): string {
   function renderQuizList() {
     quizListEl.innerHTML = "";
     quizzes.forEach((q) => {
-      const completions = typeof q.totalCompletions === "number" ? q.totalCompletions : (q.submissionCount || 0);
+      const respondents = typeof q.respondents === "number"
+        ? q.respondents
+        : (typeof q.totalCompletions === "number" ? q.totalCompletions : (q.submissionCount || 0));
+      const attempts = typeof q.totalAttempts === "number" ? q.totalAttempts : respondents;
       const fullUrl = window.location.origin + "/q/" + q.slug;
       const card = document.createElement("div");
       card.className = "quiz-item" + (q.slug === currentSlug ? " active" : "");
@@ -1051,7 +1067,9 @@ export function renderAdminBuilderHtml(): string {
         "<div class=\\"quiz-item-actions\\"></div>";
       card.querySelector("strong").textContent = q.title;
       card.querySelector(".slug-line").textContent = "/q/" + q.slug;
-      card.querySelector(".count-line").textContent = completions + " completed submission" + (completions === 1 ? "" : "s");
+      card.querySelector(".count-line").textContent =
+        respondents + " respondent" + (respondents === 1 ? "" : "s") +
+        " (" + attempts + " attempt" + (attempts === 1 ? "" : "s") + ")";
       card.querySelector(".badge").textContent = q.status;
 
       card.addEventListener("click", (e) => {

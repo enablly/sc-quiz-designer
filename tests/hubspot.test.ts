@@ -163,7 +163,8 @@ describe("Acceptance Test 2: HubSpot payload builder", () => {
       pageUri: "https://steelcase-hybrid-workplace.enablly.com/q/hybrid-meeting-readiness",
       hutk: "hutk-123",
     });
-    assert.equal(payload.context.hutk, "hutk-123");
+    assert.equal("context" in payload, false, "HubSpot payload must not contain a context object");
+    assert.equal((payload as Record<string, unknown>).context, undefined);
     assert.equal(payload.legalConsentOptions.consent.consentToProcess, true);
     assert.ok(payload.legalConsentOptions.consent.text.includes("consent-2026-11-v2"));
   });

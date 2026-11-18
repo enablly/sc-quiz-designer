@@ -300,7 +300,7 @@ describe("Engine, Admin API, Retries, and CSV Export", () => {
     assert.ok(lines[3]!.includes("Biotech"));
     assert.ok(lines[3]!.includes("Middle East"));
 
-    // Verify Central Quiz Repository list includes totalCompletions and publicPath
+    // Verify Central Quiz Repository list includes deduped respondents, totalAttempts, and publicPath
     const rList = await fetch(`${srv.baseUrl}/api/admin/quizzes`, {
       headers: { Authorization: "Bearer secret-admin-token" },
     });
@@ -309,16 +309,20 @@ describe("Engine, Admin API, Retries, and CSV Export", () => {
       slug: string;
       status: string;
       publicPath: string;
+      respondents: number;
       totalCompletions: number;
+      totalAttempts: number;
       averageReadinessPct: number;
     }>;
     const repoItem = quizList.find((q) => q.slug === "hybrid-meeting-readiness");
     assert.ok(repoItem);
     assert.equal(repoItem.publicPath, "/q/hybrid-meeting-readiness");
-    assert.equal(repoItem.totalCompletions, 3);
-    assert.equal(repoItem.averageReadinessPct, 56); // Math.round((67 + 0 + 100) / 3) = 56
+    assert.equal(repoItem.respondents, 2); // jane.doe@company.com (latest: 0% Band 1) + nonpriority@other.com (100% Band 4)
+    assert.equal(repoItem.totalCompletions, 2);
+    assert.equal(repoItem.totalAttempts, 3); // all 3 submission documents
+    assert.equal(repoItem.averageReadinessPct, 50); // (0% + 100%) / 2 = 50 (latest attempt for jane.doe@company.com wins)
 
-    // Verify server-side per-quiz statistics & per-question breakdown (no PII!)
+    // Verify server-side per-quiz statistics & per-question breakdown (no PII, deduped by latest email!)
     const rStats = await fetch(`${srv.baseUrl}/api/admin/quizzes/hybrid-meeting-readiness/stats`, {
       headers: { Authorization: "Bearer secret-admin-token" },
     });
@@ -329,7 +333,9 @@ describe("Engine, Admin API, Retries, and CSV Export", () => {
     assert.ok(!statsRaw.includes("Jane Doe"), "Stats response must not expose respondent names");
 
     const stats = JSON.parse(statsRaw) as {
+      respondents: number;
       totalCompletions: number;
+      totalAttempts: number;
       averageReadinessPct: number;
       bands: Array<{ band: number; count: number; pct: number }>;
       areas: Array<{ key: string; averagePct: number; averageScore: number; maxScore: number }>;
@@ -344,17 +350,24 @@ describe("Engine, Admin API, Retries, and CSV Export", () => {
         options: Array<{ text: string; points: number; count: number; pct: number; isMostPicked: boolean }>;
       }>;
     };
-    assert.equal(stats.totalCompletions, 3);
-    assert.equal(stats.averageReadinessPct, 56);
+    assert.equal(stats.respondents, 2);
+    assert.equal(stats.totalCompletions, 2);
+    assert.equal(stats.totalAttempts, 3);
+    assert.equal(stats.averageReadinessPct, 50);
     assert.equal(stats.bands.find((b) => b.band === 1)?.count, 1);
-    assert.equal(stats.bands.find((b) => b.band === 3)?.count, 1);
+    assert.equal(stats.bands.find((b) => b.band === 1)?.pct, 50);
+    assert.equal(stats.bands.find((b) => b.band === 3)?.count, 0); // earlier attempt for jane.doe@company.com superseded by latest
     assert.equal(stats.bands.find((b) => b.band === 4)?.count, 1);
+    assert.equal(stats.bands.find((b) => b.band === 4)?.pct, 50);
     assert.equal(stats.areas.length, 3);
+    assert.equal(stats.areas[0]!.averagePct, 50);
+    assert.equal(stats.areas[0]!.averageScore, 4.5);
+    assert.equal(stats.areas[0]!.maxScore, 9);
     assert.equal(stats.profileQuestions.length, 4);
     assert.equal(stats.scoredQuestions.length, 9);
     const q1Stats = stats.scoredQuestions.find((q) => q.id === "q1")!;
-    assert.equal(q1Stats.totalResponses, 3);
-    assert.equal(q1Stats.options.filter((o) => o.isMostPicked).length, 3); // 1 pick for 3pt, 1 pick for 2pt, 1 pick for 0pt -> tied at 1 each
+    assert.equal(q1Stats.totalResponses, 2);
+    assert.equal(q1Stats.options.filter((o) => o.isMostPicked).length, 2); // 1 pick for 3pt, 1 pick for 0pt -> tied at 1 (50% each)
   });
 
   it("uploads binary logo files to storage, serves them per quiz, copies them on duplicate, and removes cleanly", async () => {

@@ -256,11 +256,6 @@ export function buildHubSpotPayload(
   return {
     submittedAt: String(Date.parse(r.submittedAtIso)),
     fields: buildHubSpotFields(quiz, r, opts),
-    context: {
-      pageUri: r.pageUri,
-      pageName: quiz.title,
-      ...(r.hutk ? { hutk: r.hutk } : {}),
-    },
     legalConsentOptions: {
       consent: {
         consentToProcess: true,

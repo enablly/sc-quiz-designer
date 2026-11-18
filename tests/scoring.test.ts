@@ -6,8 +6,9 @@ import {
   scoreAnswers,
   pointsForAnswer,
 } from "../src/domain/scoring.js";
+import { computeQuizStats } from "../src/domain/stats.js";
 import { loadSeedDefinition } from "../src/services/seed-loader.js";
-import type { QuizDefinition } from "../src/types.js";
+import type { QuizDefinition, SubmissionDocument } from "../src/types.js";
 
 const seed = loadSeedDefinition();
 
@@ -186,5 +187,68 @@ describe("Acceptance Test 1: Scoring vectors on seed", () => {
     assert.equal(res.maxPoints, 15);
     assert.equal(res.readinessPct, 67);
     assert.ok(renderFallbackParagraph(custom, res).includes("67%"));
+  });
+
+  it("dedupes stats by respondent email (trimmed, lowercased) keeping latest completed-at while counting all attempts in totalAttempts", () => {
+    const worstAnswers = Object.fromEntries(
+      seed.scoredQuestions.map((q) => [q.id, q.options.find((o) => o.points === 0)!.text]),
+    );
+    const midAnswers = Object.fromEntries(
+      seed.scoredQuestions.map((q) => [q.id, q.options.find((o) => o.points === 2)!.text]),
+    );
+    const bestAnswers = Object.fromEntries(
+      seed.scoredQuestions.map((q) => [q.id, q.options.find((o) => o.points === 3)!.text]),
+    );
+
+    const makeSub = (
+      id: string,
+      email: string,
+      answers: Record<string, string>,
+      completedIso: string,
+    ): SubmissionDocument => ({
+      id,
+      slug: seed.slug,
+      email,
+      firstName: "Test",
+      lastName: "User",
+      company: "Co",
+      source: "public",
+      profile: { p1: "it", p2: "tech", p3: "500_1999", p4: "southeast_asia" },
+      answers,
+      result: scoreAnswers(seed, answers),
+      priorityFollowup: false,
+      consentTextVersion: "consent-2026-11-v2",
+      consentTimestamp: completedIso,
+      pageUri: "https://steelcase-hybrid-workplace.enablly.com/q/hybrid-meeting-readiness",
+      attempt_count: 1,
+      first_submitted_at: completedIso,
+      last_submitted_at: completedIso,
+      last_client_uuid: id,
+      gemini_status: "fallback",
+      gemini_text: "",
+      hubspot_status: "synced",
+      sync_attempts: 1,
+    });
+
+    // Alice's LATER attempt (100% Band 4 at 12:00) is placed BEFORE her EARLIER attempt (0% Band 1 at 08:00)
+    // to prove timestamp comparison (not just array order) picks the latest attempt.
+    // Bob submits once (67% Band 3 at 09:00).
+    const subs: SubmissionDocument[] = [
+      makeSub("sub-alice-latest", "  ALICE@ACME.COM ", bestAnswers, "2026-11-18T12:00:00.000Z"),
+      makeSub("sub-alice-earlier", "alice@acme.com", worstAnswers, "2026-11-18T08:00:00.000Z"),
+      makeSub("sub-bob", "bob@acme.com", midAnswers, "2026-11-18T09:00:00.000Z"),
+    ];
+
+    const stats = computeQuizStats(seed, subs);
+    assert.equal(stats.respondents, 2);
+    assert.equal(stats.totalCompletions, 2);
+    assert.equal(stats.totalAttempts, 3);
+    // Alice latest (100%, 27 pts) + Bob (67%, 18 pts) -> avg readiness = Math.round(167/2) = 84%, avg pts = 22.5
+    assert.equal(stats.averageReadinessPct, 84);
+    assert.equal(stats.averageTotalPoints, 22.5);
+    assert.equal(stats.bands.find((b) => b.band === 1)?.count, 0); // Alice's earlier Band 1 superseded
+    assert.equal(stats.bands.find((b) => b.band === 3)?.count, 1); // Bob
+    assert.equal(stats.bands.find((b) => b.band === 4)?.count, 1); // Alice's latest
+    assert.equal(stats.areas[0]?.averageScore, 7.5); // (9 + 6) / 2
   });
 });

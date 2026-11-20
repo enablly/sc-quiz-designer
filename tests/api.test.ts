@@ -159,11 +159,11 @@ describe("Engine, Admin API, Retries, and CSV Export", () => {
     assert.equal(data1.readinessPct, 67);
     assert.equal(data1.attemptCount, 1);
     assert.equal(data1.gemini_text, undefined); // email-only!
-    // Band 3 keeps problem-framed gap copy and closing line
+    // Band 2 (67%) keeps problem-framed gap copy and Steelcase-only closing line
     assert.equal(data1.gapCards[0]?.headline, "Not everyone feels present");
     assert.equal(
       data1.closingLine,
-      "See how to close these gaps at The Hybrid Equation on 3 Dec, with Steelcase and Logitech.",
+      "See how to close these gaps at The Hybrid Equation on 3 Dec, with Steelcase.",
     );
 
     await srv.flushSyncs();
@@ -251,7 +251,7 @@ describe("Engine, Admin API, Retries, and CSV Export", () => {
     );
     assert.equal(
       dataBand4.closingLine,
-      "Hear how other workplaces are keeping their meetings working at The Hybrid Equation on 3 Dec, with Steelcase and Logitech.",
+      "Hear how other workplaces are keeping their meetings working at The Hybrid Equation on 3 Dec, with Steelcase.",
     );
     await srv.flushSyncs();
 

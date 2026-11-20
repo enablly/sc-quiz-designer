@@ -88,7 +88,7 @@ describe("Acceptance Test 2: HubSpot payload builder", () => {
     assert.equal(map.project_name, "67");
     assert.equal(map.project_city, "0");
     assert.equal(map.project_state, "67");
-    assert.equal(map.project_zip_code, "Making progress");
+    assert.equal(map.project_zip_code, "Getting started");
     assert.equal(map.project_manager_email, "Working together");
     assert.equal(map.client_organization, "Southeast Asia");
     assert.equal(map.temp_dealer_role_name, "500–1,999");
@@ -127,8 +127,8 @@ describe("Acceptance Test 2: HubSpot payload builder", () => {
     assert.deepEqual(Object.keys(pack), expectedPackKeys);
 
     assert.equal(pack.hybrid_readiness_pct, "44");
-    assert.equal(pack.hybrid_readiness_band, "Making progress");
-    assert.equal(pack.hybrid_band_number, "2");
+    assert.equal(pack.hybrid_readiness_band, "Getting started");
+    assert.equal(pack.hybrid_band_number, "1");
     assert.equal(pack.hybrid_total_points, "12");
     assert.equal(pack.hybrid_area_being_seen_and_heard_pct, "67");
     assert.equal(pack.hybrid_area_being_seen_and_heard_score, "6");

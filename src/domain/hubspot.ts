@@ -259,7 +259,7 @@ export function buildHubSpotPayload(
     legalConsentOptions: {
       consent: {
         consentToProcess: true,
-        text: `I agree to my answers being shared with Steelcase and Logitech for my results and related follow-up. (${r.consentTextVersion})`,
+        text: `${quiz.consent?.text || "I agree to my answers being shared for my results and related follow-up."} (${r.consentTextVersion})`,
       },
     },
   };

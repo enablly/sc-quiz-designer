@@ -65,7 +65,7 @@ describe("Acceptance Test 1: Scoring vectors on seed", () => {
     assert.equal(res.band.label, "Getting started");
   });
 
-  it("scores all-2-points as 67% Band 3 (total 18 / max 27)", () => {
+  it("scores all-2-points as 67% Band 2 (total 18 / max 27)", () => {
     const answers = Object.fromEntries(
       seed.scoredQuestions.map((q) => [
         q.id,
@@ -76,18 +76,18 @@ describe("Acceptance Test 1: Scoring vectors on seed", () => {
     assert.equal(res.totalPoints, 18);
     assert.equal(res.maxPoints, 27);
     assert.equal(res.readinessPct, 67);
-    assert.equal(res.band.band, 3);
-    assert.equal(res.band.label, "Nearly there");
+    assert.equal(res.band.band, 2);
+    assert.equal(res.band.label, "Making progress");
   });
 
-  it("places boundary raw totals (10/11, 17/18, 22/23) in the right bands", () => {
+  it("places boundary raw totals (13/14, 20/21, 26/27) in the right bands (0-49 / 50-75 / 76-99 / 100-100)", () => {
     const cases: Array<[number, number, number]> = [
-      [10, 37, 1],
-      [11, 41, 2],
-      [17, 63, 2],
-      [18, 67, 3],
-      [22, 81, 3],
-      [23, 85, 4],
+      [13, 48, 1],
+      [14, 52, 2],
+      [20, 74, 2],
+      [21, 78, 3],
+      [26, 96, 3],
+      [27, 100, 4],
     ];
     for (const [raw, expectedPct, expectedBand] of cases) {
       const res = scoreAnswers(seed, buildAnswersWithTargetTotal(raw));
@@ -247,8 +247,8 @@ describe("Acceptance Test 1: Scoring vectors on seed", () => {
     assert.equal(stats.averageReadinessPct, 84);
     assert.equal(stats.averageTotalPoints, 22.5);
     assert.equal(stats.bands.find((b) => b.band === 1)?.count, 0); // Alice's earlier Band 1 superseded
-    assert.equal(stats.bands.find((b) => b.band === 3)?.count, 1); // Bob
-    assert.equal(stats.bands.find((b) => b.band === 4)?.count, 1); // Alice's latest
+    assert.equal(stats.bands.find((b) => b.band === 2)?.count, 1); // Bob (67% -> Band 2: 50-75)
+    assert.equal(stats.bands.find((b) => b.band === 4)?.count, 1); // Alice's latest (100% -> Band 4: 100-100)
     assert.equal(stats.areas[0]?.averageScore, 7.5); // (9 + 6) / 2
   });
 });

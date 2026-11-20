@@ -22,13 +22,13 @@ describe("Acceptance Test 4: Definition validator", () => {
 
   it("rejects band gaps and overlaps", () => {
     const gap = structuredClone(seed);
-    gap.scoring.bands[1]!.min = 42; // gap between 39 and 42
+    gap.scoring.bands[1]!.min = 52; // gap between 49 and 52
     const gapRes = validateQuizDefinition(gap);
     assert.equal(gapRes.valid, false);
     assert.ok(gapRes.errors.some((e) => /gap/i.test(e)));
 
     const overlap = structuredClone(seed);
-    overlap.scoring.bands[1]!.min = 38; // overlaps 0-39
+    overlap.scoring.bands[1]!.min = 48; // overlaps 0-49
     const overlapRes = validateQuizDefinition(overlap);
     assert.equal(overlapRes.valid, false);
     assert.ok(overlapRes.errors.some((e) => /overlap/i.test(e)));

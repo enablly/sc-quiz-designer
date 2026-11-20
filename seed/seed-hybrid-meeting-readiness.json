@@ -2,7 +2,7 @@
   "schemaVersion": 2,
   "slug": "hybrid-meeting-readiness",
   "title": "Hybrid Meeting Readiness Assessment",
-  "subtitle": "Steelcase and Logitech: Hybrid Meeting Readiness Assessment",
+  "subtitle": "Steelcase: Hybrid Meeting Readiness Assessment",
   "status": "draft",
   "theme": {
     "accent": "#6b4fbb",
@@ -16,16 +16,12 @@
       {
         "label": "Steelcase privacy policy",
         "url": "https://www.steelcase.com/privacy-policy/"
-      },
-      {
-        "label": "Logitech privacy policy",
-        "url": "https://www.logitech.com/en-us/legal/privacy-policy.html"
       }
     ]
   },
   "copy": {
     "welcomeHeadline": "How Hybrid-Ready Are Your Meetings?",
-    "welcomeSubline": "Steelcase and Logitech: Hybrid Meeting Readiness Assessment",
+    "welcomeSubline": "Steelcase: Hybrid Meeting Readiness Assessment",
     "welcomeMetaLine": "~2 minutes · 9 questions · See how ready your meetings are for hybrid work with this assessment.",
     "areasCoveredHeading": "Areas covered",
     "consentCheckboxLabel": "I have read and agree to the terms above.",
@@ -338,30 +334,30 @@
       {
         "band": 1,
         "min": 0,
-        "max": 39,
+        "max": 49,
         "label": "Getting started",
         "headline": "You're at [X]%. Your meetings are probably costing your people time and energy.",
         "body": "Many workplaces added a camera without rethinking the room. A few focused changes can make a visible difference quickly."
       },
       {
         "band": 2,
-        "min": 40,
-        "max": 64,
+        "min": 50,
+        "max": 75,
         "label": "Making progress",
         "headline": "You're at [X]%. The basics work, but remote colleagues are still missing out.",
         "body": "Your teams can meet, but not yet as equals. Your biggest gap below is where you'll see the fastest improvement."
       },
       {
         "band": 3,
-        "min": 65,
-        "max": 84,
+        "min": 76,
+        "max": 99,
         "label": "Nearly there",
         "headline": "You're at [X]%. You're ahead of many, with one or two gaps holding you back.",
         "body": "Small fixes in your weakest area can make meetings feel effortless for everyone."
       },
       {
         "band": 4,
-        "min": 85,
+        "min": 100,
         "max": 100,
         "label": "Hybrid ready",
         "headline": "You're at [X]%. Your meetings are working well for everyone.",
@@ -411,10 +407,10 @@
   },
   "closing": {
     "livePhase": "pre",
-    "preEvent": "See how to close these gaps at The Hybrid Equation on 3 Dec, with Steelcase and Logitech.",
-    "postEvent": "Watch The Hybrid Equation on demand and see how to close these gaps, with Steelcase and Logitech.",
-    "preEventBand4": "Hear how other workplaces are keeping their meetings working at The Hybrid Equation on 3 Dec, with Steelcase and Logitech.",
-    "postEventBand4": "Watch The Hybrid Equation on demand and hear how other workplaces are keeping their meetings working, with Steelcase and Logitech."
+    "preEvent": "See how to close these gaps at The Hybrid Equation on 3 Dec, with Steelcase.",
+    "postEvent": "Watch The Hybrid Equation on demand and see how to close these gaps, with Steelcase.",
+    "preEventBand4": "Hear how other workplaces are keeping their meetings working at The Hybrid Equation on 3 Dec, with Steelcase.",
+    "postEventBand4": "Watch The Hybrid Equation on demand and hear how other workplaces are keeping their meetings working, with Steelcase."
   },
   "integration": {
     "hubspot": {

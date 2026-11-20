@@ -52,16 +52,26 @@ describe("Acceptance Test 5: Standalone HTML export & Design upgrade", () => {
       standalone: false,
     });
 
-    // 1. Welcome screen v2 headline, sub-line, meta line & area list
+    // 1. Welcome screen v2 headline, sub-line (Steelcase only), meta line & area list
     assert.ok(html.includes("How Hybrid-Ready Are Your Meetings?"));
-    assert.ok(html.includes("Steelcase and Logitech: Hybrid Meeting Readiness Assessment"));
+    assert.ok(html.includes("Steelcase: Hybrid Meeting Readiness Assessment"));
+    assert.ok(!html.includes("Steelcase and Logitech"));
     assert.ok(html.includes("~2 minutes · 9 questions · See how ready your meetings are for hybrid work with this assessment."));
     assert.ok(html.includes("Steelcase privacy policy"));
-    assert.ok(html.includes("Logitech privacy policy"));
+    assert.ok(!html.includes("Logitech privacy policy"));
     for (const a of seed.areas) {
       assert.ok(html.includes(a.name));
       assert.ok(a.blurb && html.includes(a.blurb));
     }
+
+    // 1b. Single-page profile view (#profile-view) with select dropdowns and disabled Next button until all 4 are answered
+    assert.ok(html.includes('id="profile-view"'));
+    assert.ok(html.includes('id="profile-fields"'));
+    assert.ok(html.includes('id="profile-next-btn"'));
+    assert.ok(html.includes("function areAllProfileQuestionsAnswered()"));
+    assert.ok(html.includes("function renderProfileFields()"));
+    assert.ok(html.includes("type: \"profile-page\""));
+    assert.ok(html.includes("const totalQuestions = (hasProfileStep ? 1 : 0) + QUIZ.scoredQuestions.length;"));
 
     // 2. Area-segmented progress animated via transform: scaleX
     assert.ok(html.includes("id=\"seg-grid\""));
@@ -280,12 +290,12 @@ describe("Acceptance Test 5: Standalone HTML export & Design upgrade", () => {
     );
     assert.ok(
       html.includes(
-        "Hear how other workplaces are keeping their meetings working at The Hybrid Equation on 3 Dec, with Steelcase and Logitech.",
+        "Hear how other workplaces are keeping their meetings working at The Hybrid Equation on 3 Dec, with Steelcase.",
       ),
     );
     assert.ok(
       html.includes(
-        "Watch The Hybrid Equation on demand and hear how other workplaces are keeping their meetings working, with Steelcase and Logitech.",
+        "Watch The Hybrid Equation on demand and hear how other workplaces are keeping their meetings working, with Steelcase.",
       ),
     );
 

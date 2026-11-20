@@ -708,7 +708,8 @@ ${turnstileScript}
   .field label { font-weight: 600; font-size: 0.95rem; }
   .hint { color: var(--muted); font-size: 0.85rem; }
   .field input[type="text"],
-  .field input[type="email"] {
+  .field input[type="email"],
+  .field select {
     font: inherit;
     font-size: max(1rem, 1em);
     padding: 0.7rem 0.85rem;
@@ -717,6 +718,14 @@ ${turnstileScript}
     border-radius: 8px;
     background: #ffffff;
     color: var(--text);
+    width: 100%;
+  }
+  .profile-field-item {
+    margin-bottom: 1.25rem;
+  }
+  .profile-field-item .other-specify-wrap {
+    margin-top: 0.5rem;
+    margin-bottom: 0;
   }
   :is(.field input:user-invalid, .field input.user-invalid-fallback) {
     border-color: var(--error);
@@ -771,7 +780,7 @@ ${turnstileScript}
     align-items: center;
     justify-content: center;
   }
-  .btn:focus-visible, input:focus-visible, .link-btn:focus-visible, a:focus-visible {
+  .btn:focus-visible, input:focus-visible, select:focus-visible, .link-btn:focus-visible, a:focus-visible {
     outline: 3px solid #0b57d0;
     outline-offset: 2px;
   }
@@ -1032,6 +1041,16 @@ ${turnstileScript}
         </div>
       </form>
 
+      <!-- 2. Single-page Profile segment (all profile dropdowns on one screen) -->
+      <form id="profile-view" hidden novalidate>
+        <h2 id="profile-heading" tabindex="-1">${escapeHtml(copy.profileAreaName)}</h2>
+        <div id="profile-fields" class="profile-fields-list"></div>
+        <div class="actions">
+          <button type="button" id="profile-back-btn" class="btn btn-secondary" enterkeyhint="previous">${escapeHtml(copy.backButton)}</button>
+          <button type="submit" id="profile-next-btn" class="btn btn-primary" enterkeyhint="next" disabled>${escapeHtml(copy.nextButton)}</button>
+        </div>
+      </form>
+
       <!-- 3. Section-Intro card (before the first question of each scored area) -->
       <div id="section-intro-view" hidden>
         <div class="section-intro-box">
@@ -1178,28 +1197,27 @@ ${turnstileScript}
     Boolean(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
 
   const STORAGE_KEY = "sc_quiz_v3_" + QUIZ.slug;
-  const totalQuestions = QUIZ.profileQuestions.length + QUIZ.scoredQuestions.length;
+  const hasProfileStep = QUIZ.profileQuestions.length > 0;
+  const totalQuestions = (hasProfileStep ? 1 : 0) + QUIZ.scoredQuestions.length;
 
-  // Build wizard steps: profile questions, then for each area: section-intro + area questions
+  // Build wizard steps: single profile page (if any), then for each area: section-intro + area questions
   const wizardSteps = [];
   let qOverall = 0;
 
-  QUIZ.profileQuestions.forEach((pq, idx) => {
+  if (hasProfileStep) {
     qOverall += 1;
     wizardSteps.push({
-      type: "question",
+      type: "profile-page",
       kind: "profile",
-      id: pq.id,
-      text: pq.label,
-      options: pq.options,
+      questions: QUIZ.profileQuestions,
       areaKey: "__profile__",
       areaName: COPY.profileAreaName || "About your organization",
-      indexInArea: idx + 1,
-      areaTotal: QUIZ.profileQuestions.length,
+      indexInArea: 1,
+      areaTotal: 1,
       overallIndex: qOverall,
       totalQuestions,
     });
-  });
+  }
 
   const seenAreas = new Set();
   QUIZ.scoredQuestions.forEach((sq) => {
@@ -1302,6 +1320,12 @@ ${turnstileScript}
   const prefillConsentBanner = document.getElementById("prefill-consent-banner");
   const prefillSummary = document.getElementById("prefill-summary");
 
+  const profileView = document.getElementById("profile-view");
+  const profileHeading = document.getElementById("profile-heading");
+  const profileFields = document.getElementById("profile-fields");
+  const profileBackBtn = document.getElementById("profile-back-btn");
+  const profileNextBtn = document.getElementById("profile-next-btn");
+
   const sectionIntroView = document.getElementById("section-intro-view");
   const introKicker = document.getElementById("intro-kicker");
   const introHeading = document.getElementById("intro-heading");
@@ -1372,7 +1396,13 @@ ${turnstileScript}
     });
 
     if (!currentStepObj) return;
-    if (currentStepObj.type === "area-intro") {
+    if (currentStepObj.type === "profile-page") {
+      progressLabel.textContent = currentStepObj.areaName;
+      progressOverall.textContent = formatCopy(
+        COPY.progressOverallFormat || "{overallIndex} of {totalQuestions} overall",
+        currentStepObj,
+      );
+    } else if (currentStepObj.type === "area-intro") {
       progressLabel.textContent = formatCopy(
         COPY.progressAreaIntroFormat || "{areaName} \\u00b7 Area {areaIndex} of {totalAreas}",
         currentStepObj,
@@ -1608,11 +1638,120 @@ ${turnstileScript}
     }, gapDelay);
   }
 
+  function areAllProfileQuestionsAnswered() {
+    return QUIZ.profileQuestions.every((pq) => {
+      const val = state.profile[pq.id];
+      return typeof val === "string" && val.trim().length > 0;
+    });
+  }
+
+  function updateProfileNextButtonState() {
+    if (profileNextBtn) {
+      profileNextBtn.disabled = !areAllProfileQuestionsAnswered();
+    }
+  }
+
+  function renderProfileFields() {
+    profileFields.innerHTML = "";
+    QUIZ.profileQuestions.forEach((pq) => {
+      const wrap = document.createElement("div");
+      wrap.className = "field profile-field-item";
+
+      const selectId = "prof-sel-" + pq.id;
+      const lbl = document.createElement("label");
+      lbl.htmlFor = selectId;
+      lbl.textContent = pq.label;
+
+      const sel = document.createElement("select");
+      sel.id = selectId;
+      sel.name = "profile_" + pq.id;
+      sel.required = true;
+
+      const placeholderOpt = document.createElement("option");
+      placeholderOpt.value = "";
+      placeholderOpt.disabled = true;
+      placeholderOpt.textContent = "Select an option...";
+      sel.append(placeholderOpt);
+
+      const currentVal = state.profile[pq.id] || "";
+      let matchedCode = "";
+      let selectedOptHasFreeText = false;
+
+      pq.options.forEach((opt) => {
+        const optEl = document.createElement("option");
+        optEl.value = opt.code;
+        optEl.textContent = opt.text;
+        if (currentVal && (currentVal === opt.code || currentVal === opt.text)) {
+          optEl.selected = true;
+          matchedCode = opt.code;
+          if (opt.allowFreeText) {
+            selectedOptHasFreeText = true;
+          }
+        }
+        sel.append(optEl);
+      });
+
+      if (!matchedCode) {
+        placeholderOpt.selected = true;
+      } else {
+        state.profile[pq.id] = matchedCode;
+      }
+
+      const otherWrap = document.createElement("div");
+      otherWrap.id = "prof-other-wrap-" + pq.id;
+      otherWrap.className = "field other-specify-wrap";
+      otherWrap.hidden = !selectedOptHasFreeText;
+
+      const otherInputId = "prof-other-" + pq.id;
+      const otherLbl = document.createElement("label");
+      otherLbl.htmlFor = otherInputId;
+      otherLbl.textContent = COPY.otherSpecifyLabel || "Please specify";
+
+      const otherIn = document.createElement("input");
+      otherIn.type = "text";
+      otherIn.id = otherInputId;
+      otherIn.name = "otherSpecify_" + pq.id;
+      otherIn.maxLength = 300;
+      otherIn.placeholder = COPY.otherSpecifyPlaceholder || "Type your answer...";
+      otherIn.value = selectedOptHasFreeText ? (state.profileOther[pq.id] || "") : "";
+
+      otherIn.addEventListener("input", () => {
+        state.profileOther[pq.id] = otherIn.value.trim();
+        persist();
+      });
+
+      otherWrap.append(otherLbl, otherIn);
+
+      sel.addEventListener("change", () => {
+        const chosenCode = sel.value;
+        state.profile[pq.id] = chosenCode;
+        const optObj = pq.options.find((o) => o.code === chosenCode || o.text === chosenCode);
+        if (optObj && optObj.allowFreeText) {
+          otherWrap.hidden = false;
+          otherIn.value = state.profileOther[pq.id] || "";
+          otherIn.focus();
+        } else {
+          otherWrap.hidden = true;
+          otherIn.value = "";
+          delete state.profileOther[pq.id];
+        }
+        showError("");
+        persist();
+        updateProfileNextButtonState();
+      });
+
+      wrap.append(lbl, sel, otherWrap);
+      profileFields.append(wrap);
+    });
+    updateProfileNextButtonState();
+  }
+
   function render(focusHeading = false) {
     cancelAutoAdvance();
     cancelResultsAnimation();
     showError("");
     consentView.hidden = true;
+    profileView.hidden = true;
     sectionIntroView.hidden = true;
     questionView.hidden = true;
     identityView.hidden = true;
@@ -1641,6 +1780,15 @@ ${turnstileScript}
       progressContainer.hidden = false;
       const stepObj = wizardSteps[state.step];
       updateSegmentedProgress(stepObj);
+
+      if (stepObj.type === "profile-page") {
+        profileView.hidden = false;
+        applyStepTransition(profileView);
+        profileHeading.textContent = stepObj.areaName;
+        renderProfileFields();
+        if (focusHeading) profileHeading.focus();
+        return;
+      }
 
       if (stepObj.type === "area-intro") {
         sectionIntroView.hidden = false;
@@ -1862,6 +2010,35 @@ ${turnstileScript}
     if (!state.consentTimestamp) state.consentTimestamp = new Date().toISOString();
     navDirection = "forward";
     state.step = 0;
+    persist();
+    render(true);
+  });
+
+  profileBackBtn.addEventListener("click", () => {
+    navDirection = "back";
+    state.step = Math.max(-1, state.step - 1);
+    persist();
+    render(true);
+  });
+
+  profileView.addEventListener("submit", (e) => {
+    e.preventDefault();
+    if (!areAllProfileQuestionsAnswered()) {
+      showError(COPY.questionRequiredError || "Please answer all questions to continue.");
+      return;
+    }
+    QUIZ.profileQuestions.forEach((pq) => {
+      const chosen = state.profile[pq.id];
+      const optObj = pq.options.find((o) => o.code === chosen || o.text === chosen);
+      const otherEl = document.getElementById("prof-other-" + pq.id);
+      if (optObj && optObj.allowFreeText && otherEl) {
+        state.profileOther[pq.id] = otherEl.value.trim();
+      } else {
+        delete state.profileOther[pq.id];
+      }
+    });
+    navDirection = "forward";
+    state.step += 1;
     persist();
     render(true);
   });
